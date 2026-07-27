@@ -1,0 +1,29 @@
+# Environment & Credentials
+.env
+*.env
+bot.db
+*.db
+*.sqlite
+
+# Media & Temp Stores
+temp_media/*
+!temp_media/.gitkeep
+uploads/*
+!uploads/.gitkeep
+
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# System & OS
+.DS_Store
+Thumbs.db
+*.zip
+*.log
+
+# IDE & Editor
+.vscode/
+.idea/
+.gemini/

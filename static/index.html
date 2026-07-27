@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>X Automation Bot — Dashboard</title>
+  <meta name="description" content="Monitor and control your X (Twitter) automation pipeline. View post history, manage sources, accounts, and settings from a single dashboard." />
+  <meta name="theme-color" content="#0a0a0f" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <!-- Toast container -->
+  <div id="toast-container" aria-live="polite"></div>
+
+  <!-- ── Header ── -->
+  <header id="app-header">
+    <div class="header-inner">
+      <div class="header-brand">
+        <div class="brand-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 4l6.5 8L4 20h2l5.5-6.8L16 20h4l-7-8.5L19.5 4H18l-5 6.2L9 4H4z" fill="url(#g)"/><defs><linearGradient id="g" x1="4" y1="4" x2="20" y2="20"><stop stop-color="#6366f1"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs></svg>
+        </div>
+        <h1>X Automation</h1>
+      </div>
+
+      <div class="header-badges">
+        <button id="btn-pause" class="badge badge-status" title="Toggle pause/resume">
+          <span class="status-dot" id="status-dot"></span>
+          <span id="status-label">Loading…</span>
+        </button>
+        <div class="badge" title="Queue depth">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M3 15h18"/></svg>
+          <span>Queue: <strong id="queue-depth">—</strong></span>
+        </div>
+        <div class="badge" title="Last run">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          <span id="last-run">—</span>
+        </div>
+        <button id="btn-run-now" class="btn-accent" title="Run pipeline now">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          Run Now
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Tab Navigation ── -->
+  <nav id="tab-nav">
+    <div class="tab-nav-inner">
+      <button class="tab-btn active" data-tab="dashboard">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Dashboard
+      </button>
+      <button class="tab-btn" data-tab="ingest">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        Creator & Ingest
+      </button>
+      <button class="tab-btn" data-tab="approval">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        Approval Queue
+      </button>
+      <button class="tab-btn" data-tab="sources">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+        Sources
+      </button>
+      <button class="tab-btn" data-tab="accounts">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Accounts
+      </button>
+      <button class="tab-btn" data-tab="settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1.08-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1.08 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001.08 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1.08z"/></svg>
+        Settings
+      </button>
+      <button class="tab-btn" data-tab="logs">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+        Logs
+      </button>
+    </div>
+  </nav>
+
+  <!-- ── Main Content ── -->
+  <main id="main-content">
+
+    <!-- Dashboard Tab -->
+    <section id="panel-dashboard" class="tab-panel active">
+      <!-- Quick Post Widget (Task 3.2) -->
+      <div class="glass-form" id="widget-quick-post" style="margin-bottom: 2rem;">
+        <h3 style="margin-bottom: 1rem; font-size: 1.1rem; color: var(--text-main); display: flex; align-items: center; gap: 0.5rem;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          Quick Post
+        </h3>
+        <form id="form-quick-post" autocomplete="off">
+          <div class="form-row">
+            <div class="form-group flex-2">
+              <label for="qp-url">Video URL</label>
+              <input type="url" id="qp-url" placeholder="https://www.youtube.com/watch?v=..." required />
+            </div>
+            <div class="form-group flex-1">
+              <label for="qp-platform">Platform</label>
+              <select id="qp-platform">
+                <option value="x">X (Twitter)</option>
+                <option value="instagram">Instagram</option>
+                <option value="tiktok">TikTok</option>
+              </select>
+            </div>
+            <div class="form-group flex-1">
+              <label for="qp-account">Post Account</label>
+              <select id="qp-account">
+                <option value="">Auto-Select (Rotate)</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row" style="margin-top: 1rem;">
+            <div class="form-group flex-1">
+              <label for="qp-caption">Custom Caption (Optional — leaves AI to generate if blank)</label>
+              <textarea id="qp-caption" rows="2" placeholder="Write an engaging caption..." style="resize: vertical;"></textarea>
+            </div>
+          </div>
+          <div class="form-row" style="margin-top: 1rem; justify-content: flex-end;">
+            <div class="form-group form-action">
+              <button type="submit" class="btn-accent" id="qp-submit-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                Publish Now
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <div class="panel-header">
+        <h2>Post History</h2>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+          <select id="history-platform-filter">
+            <option value="all">All Platforms</option>
+            <option value="x">X (Twitter)</option>
+            <option value="instagram">Instagram</option>
+            <option value="tiktok">TikTok</option>
+          </select>
+          <button id="btn-refresh-history" class="btn-ghost" title="Refresh">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+          </button>
+        </div>
+      </div>
+      <div id="history-grid" class="card-grid">
+        <div class="empty-state">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+          <p>No posts yet</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Creator & Ingest Tab -->
+    <section id="panel-ingest" class="tab-panel">
+      <div class="panel-header">
+        <h2>Multi-Format Content Creator</h2>
+      </div>
+
+      <div class="glass-form" style="margin-bottom: 2rem;">
+        <h3 style="margin-bottom: 1rem; font-size: 1.1rem; color: var(--text-main); display: flex; align-items: center; gap: 0.5rem;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Upload Media & Ingest Content
+        </h3>
+
+        <!-- Drag & Drop Zone -->
+        <div id="drop-zone" class="drop-zone" style="border: 2px dashed rgba(255,255,255,0.2); border-radius: 12px; padding: 2rem; text-align: center; background: rgba(255,255,255,0.02); cursor: pointer; margin-bottom: 1.5rem; transition: all 0.3s ease;">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--accent); margin-bottom: 0.5rem;"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          <p style="font-weight: 500; font-size: 1rem;">Drag & drop video (.mp4, .mov) or image (.jpg, .png, .webp)</p>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem;">or click to browse files</p>
+          <input type="file" id="file-input" style="display: none;" accept="video/mp4,video/quicktime,image/png,image/jpeg,image/webp" />
+          <div id="file-upload-status" style="margin-top: 0.75rem; font-weight: 600; font-size: 0.9rem; color: var(--accent);"></div>
+        </div>
+
+        <form id="form-ingest" autocomplete="off">
+          <input type="hidden" id="ingest-media-path" value="" />
+          <input type="hidden" id="ingest-media-type" value="text" />
+
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label for="ingest-text">Caption / Post Text</label>
+            <textarea id="ingest-text" rows="4" placeholder="Write your post content, description, or announcement here..." style="width: 100%; border-radius: 8px; background: rgba(0,0,0,0.3); color: #fff; border: 1px solid rgba(255,255,255,0.1); padding: 0.75rem;"></textarea>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label>Target Platforms</label>
+              <div style="display: flex; gap: 1rem; align-items: center; margin-top: 0.5rem;">
+                <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer;">
+                  <input type="checkbox" name="ingest-platform" value="x" checked /> X (Twitter)
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer;">
+                  <input type="checkbox" name="ingest-platform" value="instagram" /> Instagram
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer;">
+                  <input type="checkbox" name="ingest-platform" value="tiktok" /> TikTok
+                </label>
+              </div>
+            </div>
+            <div class="form-group flex-1">
+              <label for="ingest-account">Specific Account (Optional)</label>
+              <select id="ingest-account">
+                <option value="">Least used active account</option>
+              </select>
+            </div>
+            <div class="form-group flex-1">
+              <label for="ingest-scheduled-at">Scheduled Target Time (Optional)</label>
+              <input type="datetime-local" id="ingest-scheduled-at" style="background: rgba(0,0,0,0.3); color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0.6rem;" />
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 1rem; margin-top: 1.5rem; justify-content: flex-end;">
+            <button type="button" id="btn-save-draft" class="btn-ghost">Save as Draft</button>
+            <button type="submit" id="btn-submit-ingest" class="btn-accent">Submit for Approval</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- Approval Queue Tab -->
+    <section id="panel-approval" class="tab-panel">
+      <div class="panel-header">
+        <h2>Human Approval Queue</h2>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+          <button id="btn-approve-all" class="btn-accent">Approve All Pending</button>
+          <button id="btn-refresh-approval" class="btn-ghost" title="Refresh Queue">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+          </button>
+        </div>
+      </div>
+      <div id="approval-grid" class="card-grid">
+        <div class="empty-state">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+          <p>No draft posts waiting for approval</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Sources Tab -->
+    <section id="panel-sources" class="tab-panel">
+      <div class="panel-header">
+        <h2>Content Sources</h2>
+      </div>
+      <form id="form-add-source" class="glass-form" autocomplete="off">
+        <div class="form-row">
+          <div class="form-group flex-2">
+            <label for="source-url">Feed URL</label>
+            <input type="url" id="source-url" placeholder="https://example.com/rss" required />
+          </div>
+          <div class="form-group flex-1">
+            <label for="source-platform">Feed Type</label>
+            <select id="source-platform">
+              <option value="rss">RSS</option>
+              <option value="atom">Atom</option>
+              <option value="json">JSON Feed</option>
+              <option value="sitemap">Sitemap</option>
+              <option value="api">API</option>
+            </select>
+          </div>
+          <div class="form-group flex-1">
+            <label for="source-name">Name</label>
+            <input type="text" id="source-name" placeholder="My Feed" required />
+          </div>
+          <div class="form-group form-action">
+            <button type="submit" class="btn-accent">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Source
+            </button>
+          </div>
+        </div>
+        <div class="form-row" style="margin-top: 1rem;">
+          <div class="form-group">
+            <label>Target Platforms (Destinations)</label>
+            <div style="display: flex; gap: 1.5rem; margin-top: 0.5rem;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.95rem; user-select: none;">
+                <input type="checkbox" name="destinations" value="x" checked style="cursor: pointer;" /> X (Twitter)
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.95rem; user-select: none;">
+                <input type="checkbox" name="destinations" value="instagram" style="cursor: pointer;" /> Instagram
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.95rem; user-select: none;">
+                <input type="checkbox" name="destinations" value="tiktok" style="cursor: pointer;" /> TikTok
+              </label>
+            </div>
+          </div>
+        </div>
+      </form>
+      <div id="sources-list" class="item-list">
+        <div class="empty-state">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+          <p>No sources configured</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Accounts Tab -->
+    <section id="panel-accounts" class="tab-panel">
+      <div class="panel-header">
+        <h2>X Accounts</h2>
+      </div>
+      <form id="form-add-account" class="glass-form" autocomplete="off">
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label for="acct-platform">Platform</label>
+            <select id="acct-platform">
+              <option value="x">X (Twitter)</option>
+              <option value="instagram">Instagram</option>
+              <option value="tiktok">TikTok</option>
+            </select>
+          </div>
+          <div class="form-group flex-1">
+            <label for="acct-label">Label</label>
+            <input type="text" id="acct-label" placeholder="@my_bot" required />
+          </div>
+          <div class="form-group flex-1">
+            <label for="acct-auth-mode">Auth Mode</label>
+            <select id="acct-auth-mode">
+              <option value="api">Official API Keys</option>
+              <option value="cookie">Session Cookie</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row" style="margin-top: 1rem;">
+          <div class="form-group flex-1">
+            <label for="acct-proxy-url">Account Proxy URL (Optional, e.g. http://user:pass@ip:port)</label>
+            <input type="text" id="acct-proxy-url" placeholder="http://127.0.0.1:8080" />
+          </div>
+          <div class="form-group flex-1">
+            <label for="acct-user-agent">Account User-Agent Override (Optional)</label>
+            <input type="text" id="acct-user-agent" placeholder="Mozilla/5.0..." />
+          </div>
+        </div>
+
+        <!-- X API fields -->
+        <div class="form-row" id="acct-api-fields" style="margin-top: 1rem;">
+          <div class="form-group flex-1">
+            <label for="acct-api-key">API Key</label>
+            <input type="password" id="acct-api-key" placeholder="••••••••" />
+          </div>
+          <div class="form-group flex-1">
+            <label for="acct-api-secret">API Secret</label>
+            <input type="password" id="acct-api-secret" placeholder="••••••••" />
+          </div>
+          <div class="form-group flex-1">
+            <label for="acct-access-token">Access Token</label>
+            <input type="password" id="acct-access-token" placeholder="••••••••" />
+          </div>
+          <div class="form-group flex-1">
+            <label for="acct-access-secret">Access Secret</label>
+            <input type="password" id="acct-access-secret" placeholder="••••••••" />
+          </div>
+        </div>
+
+        <!-- X Cookie fields -->
+        <div class="form-row" id="acct-cookie-fields" style="margin-top: 1rem; display: none;">
+          <div class="form-group flex-2">
+            <label for="acct-cookie-auth-token">Session Cookie (auth_token)</label>
+            <input type="password" id="acct-cookie-auth-token" placeholder="auth_token value" />
+          </div>
+          <div class="form-group flex-1">
+            <label for="acct-cookie-ct0">CSRF Token (ct0 - optional)</label>
+            <input type="password" id="acct-cookie-ct0" placeholder="ct0 value" />
+          </div>
+        </div>
+
+        <!-- Instagram API fields -->
+        <div class="form-row" id="acct-instagram-api-fields" style="margin-top: 1rem; display: none;">
+          <div class="form-group flex-2">
+            <label for="acct-ig-access-token">Meta Access Token</label>
+            <input type="password" id="acct-ig-access-token" placeholder="EAAB…" />
+          </div>
+          <div class="form-group flex-1">
+            <label for="acct-ig-account-id">Instagram Account ID</label>
+            <input type="text" id="acct-ig-account-id" placeholder="1784…" />
+          </div>
+        </div>
+
+        <!-- Instagram Cookie fields -->
+        <div class="form-row" id="acct-instagram-cookie-fields" style="margin-top: 1rem; display: none;">
+          <div class="form-group flex-1">
+            <label for="acct-ig-username">Instagram Username</label>
+            <input type="text" id="acct-ig-username" placeholder="my_profile" />
+          </div>
+          <div class="form-group flex-1">
+            <label for="acct-ig-password">Instagram Password</label>
+            <input type="password" id="acct-ig-password" placeholder="Password" />
+          </div>
+        </div>
+
+        <!-- TikTok API fields -->
+        <div class="form-row" id="acct-tiktok-api-fields" style="margin-top: 1rem; display: none;">
+          <div class="form-group flex-2">
+            <label for="acct-tt-access-token">TikTok Access Token</label>
+            <input type="password" id="acct-tt-access-token" placeholder="act.example…" />
+          </div>
+          <div class="form-group flex-1">
+            <label for="acct-tt-open-id">Open ID</label>
+            <input type="text" id="acct-tt-open-id" placeholder="open_id" />
+          </div>
+        </div>
+
+        <!-- TikTok Cookie fields -->
+        <div class="form-row" id="acct-tiktok-cookie-fields" style="margin-top: 1rem; display: none;">
+          <div class="form-group flex-2">
+            <label for="acct-tt-session-id">TikTok sessionid Cookie</label>
+            <input type="password" id="acct-tt-session-id" placeholder="sessionid cookie value" />
+          </div>
+          <div class="form-group flex-1">
+            <label for="acct-tt-user-agent">User Agent</label>
+            <input type="text" id="acct-tt-user-agent" placeholder="Mozilla/5.0..." />
+          </div>
+        </div>
+
+        <div class="form-row" style="margin-top: 1rem; justify-content: flex-end;">
+          <div class="form-group form-action">
+            <button type="submit" class="btn-accent">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Account
+            </button>
+          </div>
+        </div>
+      </form>
+      <div id="accounts-list" class="item-list">
+        <div class="empty-state">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <p>No accounts configured</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Settings Tab -->
+    <section id="panel-settings" class="tab-panel">
+      <div class="panel-header">
+        <h2>Settings</h2>
+      </div>
+      <form id="form-settings" class="glass-form settings-form" autocomplete="off">
+        <div class="settings-grid">
+          <div class="setting-card glass-card">
+            <div class="setting-card-header">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+              <h3>Scheduler & Timing</h3>
+            </div>
+            <div class="form-group">
+              <label for="setting-interval">Post interval: <strong id="interval-value">30</strong> min</label>
+              <input type="range" id="setting-interval" min="5" max="120" step="5" value="30" />
+              <div class="range-labels"><span>5 min</span><span>120 min</span></div>
+            </div>
+            <div class="form-group" style="margin-top: 1rem;">
+              <label class="toggle-label">
+                <span>Enable timing jitter (±15% variance)</span>
+                <div class="toggle-switch">
+                  <input type="checkbox" id="setting-scheduler-jitter" checked />
+                  <span class="toggle-slider"></span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div class="setting-card glass-card">
+            <div class="setting-card-header">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 100 20 10 10 0 000-20z"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+              <h3>AI Captions</h3>
+            </div>
+            <div class="form-group">
+              <label class="toggle-label">
+                <span>Enable AI-generated captions</span>
+                <div class="toggle-switch">
+                  <input type="checkbox" id="setting-caption-ai" />
+                  <span class="toggle-slider"></span>
+                </div>
+              </label>
+            </div>
+            <div class="form-group">
+              <label for="setting-gemini-key">Gemini API Key</label>
+              <input type="password" id="setting-gemini-key" placeholder="AIza…" />
+            </div>
+          </div>
+
+          <div class="setting-card glass-card">
+            <div class="setting-card-header">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+              <h3>Algorithm Optimization</h3>
+            </div>
+            <div class="form-group">
+              <label for="setting-vertical-pad">Reels/TikTok Padding</label>
+              <select id="setting-vertical-pad">
+                <option value="blur_background">Blurred Background Overlay</option>
+                <option value="letterbox">Letterbox (Black Bars)</option>
+                <option value="crop">Center Crop (No Bars)</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-top: 1rem;">
+              <label for="setting-x-link-placement">X Link Placement</label>
+              <select id="setting-x-link-placement">
+                <option value="thread_reply">Thread Auto-Reply (Max Reach)</option>
+                <option value="main_tweet">Main Tweet Body (Standard)</option>
+                <option value="none">None (Do Not Post Source Link)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="setting-card glass-card">
+            <div class="setting-card-header">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
+              <h3>Notifications & Alerts</h3>
+            </div>
+            <div class="form-group">
+              <label for="setting-webhook-url">Discord/Slack Webhook URL</label>
+              <input type="password" id="setting-webhook-url" placeholder="https://discord.com/api/webhooks/..." />
+            </div>
+            <div class="form-group" style="margin-top: 0.75rem;">
+              <label for="setting-telegram-token">Telegram Bot Token</label>
+              <input type="password" id="setting-telegram-token" placeholder="123456789:ABCdef..." />
+            </div>
+            <div class="form-group" style="margin-top: 0.75rem;">
+              <label for="setting-telegram-chat">Telegram Chat ID</label>
+              <input type="text" id="setting-telegram-chat" placeholder="-100123456789" />
+            </div>
+            <div class="form-group" style="margin-top: 1rem;">
+              <button type="button" id="btn-test-webhook" class="btn-ghost" style="width: 100%; justify-content: center; border: 1px dashed var(--border-color); cursor: pointer;">
+                Send Test Webhook
+              </button>
+            </div>
+          </div>
+
+          <div class="setting-card glass-card full-width">
+            <div class="setting-card-header">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><path d="M10 9H8"/></svg>
+              <h3>Per-Platform AI Caption Prompt Templates</h3>
+            </div>
+            <div class="form-row">
+              <div class="form-group flex-1">
+                <label for="setting-template-x">X (Twitter) Prompt Template</label>
+                <textarea id="setting-template-x" rows="3" placeholder="Write a short, high-converting tweet for a video titled '{title}'..."></textarea>
+              </div>
+              <div class="form-group flex-1">
+                <label for="setting-template-ig">Instagram Prompt Template</label>
+                <textarea id="setting-template-ig" rows="3" placeholder="Write a visual, engaging Instagram Reel caption for '{title}'..."></textarea>
+              </div>
+              <div class="form-group flex-1">
+                <label for="setting-template-tt">TikTok Prompt Template</label>
+                <textarea id="setting-template-tt" rows="3" placeholder="Write a viral TikTok video caption for '{title}'..."></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-actions" style="display: flex; gap: 1rem; justify-content: space-between; align-items: center; margin-top: 1.5rem;">
+          <button type="button" id="btn-export-backup" class="btn-ghost" style="border: 1px solid var(--accent); color: var(--accent);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export System Backup (.zip)
+          </button>
+          <button type="submit" class="btn-accent btn-lg">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>
+            Save Settings
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Logs Tab -->
+    <section id="panel-logs" class="tab-panel">
+      <div class="panel-header">
+        <h2>Logs</h2>
+        <div class="log-controls">
+          <button id="btn-clear-logs" class="btn-ghost" title="Clear display">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+          </button>
+          <label class="toggle-label compact">
+            <span>Auto-scroll</span>
+            <div class="toggle-switch sm">
+              <input type="checkbox" id="log-autoscroll" checked />
+              <span class="toggle-slider"></span>
+            </div>
+          </label>
+        </div>
+      </div>
+      <!-- Log Category Filters (Task 3.4) -->
+      <div class="log-filters" style="display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; font-size: 0.85rem; color: var(--text-muted); background: rgba(255,255,255,0.02); padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border-color); align-items: center;">
+        <span style="font-weight: 500; color: var(--text-main);">Filter Categories:</span>
+        <label style="display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; user-select: none;">
+          <input type="checkbox" id="log-filter-scheduler" checked style="cursor: pointer;" /> Scheduler
+        </label>
+        <label style="display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; user-select: none;">
+          <input type="checkbox" id="log-filter-downloader" checked style="cursor: pointer;" /> Downloader
+        </label>
+        <label style="display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; user-select: none;">
+          <input type="checkbox" id="log-filter-publisher" checked style="cursor: pointer;" /> Publisher
+        </label>
+        <label style="display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; user-select: none;">
+          <input type="checkbox" id="log-filter-error" style="cursor: pointer;" /> Errors Only
+        </label>
+      </div>
+      <div id="log-terminal" class="terminal">
+        <div id="log-content"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
