@@ -568,10 +568,17 @@ async def send_system_notification(event_type: str, title: str, details: dict):
         def _send():
             import urllib.request
             import json
+            import re
 
             webhook_url = db.get_setting("webhook_url", "").strip()
             telegram_token = db.get_setting("telegram_bot_token", "").strip()
             telegram_chat_id = db.get_setting("telegram_chat_id", "").strip()
+
+            def _escape_md(text: str) -> str:
+                if not text:
+                    return ""
+                # Escape markdown special characters for plain text insertion
+                return re.sub(r'([_*`\[\]])', r'\\\1', str(text))
 
             # 1. Custom JSON Webhook
             if webhook_url:
@@ -591,10 +598,13 @@ async def send_system_notification(event_type: str, title: str, details: dict):
             # 2. Telegram Bot API
             if telegram_token and telegram_chat_id:
                 try:
-                    text_msg = f"🔔 *X Automation Alert: {event_type.upper()}*\n\n*Title:* {title}\n"
+                    clean_title = _escape_md(title)
+                    text_msg = f"🔔 *X Automation Alert: {event_type.upper()}*\n\n*Title:* {clean_title}\n"
                     for k, v in details.items():
                         if v:
-                            text_msg += f"• *{k}:* {v}\n"
+                            clean_k = _escape_md(k)
+                            clean_v = _escape_md(v)
+                            text_msg += f"• *{clean_k}:* {clean_v}\n"
 
                     tg_url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
                     tg_payload = json.dumps({

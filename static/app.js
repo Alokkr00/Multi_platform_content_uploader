@@ -1,6 +1,76 @@
 /* app.js - X Automation Bot Dashboard Client Logic */
 
 document.addEventListener('DOMContentLoaded', () => {
+  // ── Authentication & Fetch Wrapper ─────────────────────────────────
+  const authModal = document.getElementById('auth-modal');
+  const formAuth = document.getElementById('form-auth');
+  const authTokenInput = document.getElementById('auth-token-input');
+  const btnLogout = document.getElementById('btn-logout');
+
+  function getAuthToken() {
+    return localStorage.getItem('auth_token') || '';
+  }
+
+  function showAuthModal() {
+    if (authModal) authModal.style.display = 'flex';
+    if (btnLogout) btnLogout.style.display = 'none';
+  }
+
+  function hideAuthModal() {
+    if (authModal) authModal.style.display = 'none';
+    if (btnLogout) btnLogout.style.display = 'inline-flex';
+  }
+
+  const originalFetch = window.fetch;
+  window.fetch = async function (url, options = {}) {
+    options.headers = options.headers || {};
+    const token = getAuthToken();
+
+    if (typeof url === 'string' && url.startsWith('/api/')) {
+      if (token) {
+        if (options.headers instanceof Headers) {
+          options.headers.set('Authorization', `Bearer ${token}`);
+        } else {
+          options.headers['Authorization'] = `Bearer ${token}`;
+        }
+      }
+    }
+
+    const response = await originalFetch(url, options);
+    if (response.status === 401 && typeof url === 'string' && url.startsWith('/api/')) {
+      localStorage.removeItem('auth_token');
+      showAuthModal();
+    }
+    return response;
+  };
+
+  if (formAuth) {
+    formAuth.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const token = authTokenInput ? authTokenInput.value.trim() : '';
+      if (token) {
+        localStorage.setItem('auth_token', token);
+        hideAuthModal();
+        fetchStatus();
+        fetchHistory();
+      }
+    });
+  }
+
+  if (btnLogout) {
+    btnLogout.addEventListener('click', () => {
+      localStorage.removeItem('auth_token');
+      showAuthModal();
+      showToast('Dashboard locked', 'info');
+    });
+  }
+
+  if (!getAuthToken()) {
+    showAuthModal();
+  } else {
+    hideAuthModal();
+  }
+
   // ── DOM References ──────────────────────────────────────────────────
   const tabButtons = document.querySelectorAll('.tab-btn');
   const tabPanels = document.querySelectorAll('.tab-panel');

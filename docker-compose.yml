@@ -1,35 +1,18 @@
 version: '3.8'
 
 services:
-  db:
-    image: postgres:15-alpine
-    container_name: x-automation-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: bot_user
-      POSTGRES_PASSWORD: bot_password_9988
-      POSTGRES_DB: x_automation_db
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-
   bot:
     build: .
     container_name: x-automation-bot
     restart: unless-stopped
     ports:
-      - "8001:8001"
+      - "8000:8000"
+    env_file:
+      - .env
     environment:
       - HOST=0.0.0.0
-      - PORT=8001
-      - DATABASE_URL=postgresql://bot_user:bot_password_9988@db:5432/x_automation_db
-    depends_on:
-      - db
+      - PORT=8000
     volumes:
       - ./bot.db:/app/bot.db
-      - ./.env:/app/.env
       - ./temp_media:/app/temp_media
-
-volumes:
-  pgdata:
+      - ./uploads:/app/uploads

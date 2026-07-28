@@ -6,20 +6,33 @@ managing sources, accounts, settings, history, and logs.
 """
 
 import asyncio
+import ipaddress
+import json
 import logging
 import os
+import queue
+import re
+import secrets
+import socket
 import sys
+import threading
 import time
+import uuid
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, Request, File, UploadFile
+from fastapi import FastAPI, HTTPException, Request, File, UploadFile, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from dotenv import load_dotenv
 
 import db
 from scheduler import scheduler
+
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(
@@ -29,8 +42,24 @@ logging.basicConfig(
 )
 logger = logging.getLogger("x_automation.server")
 
-import queue
-import threading
+# ── Dashboard Auth Secret Setup ───────────────────────────────────────
+
+def get_or_create_dashboard_secret() -> str:
+    """Retrieve DASHBOARD_SECRET from environment or auto-generate a secure token."""
+    secret = os.getenv("DASHBOARD_SECRET", "").strip()
+    if not secret:
+        secret = secrets.token_hex(16)
+        os.environ["DASHBOARD_SECRET"] = secret
+        env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+        try:
+            with open(env_path, "a", encoding="utf-8") as f:
+                f.write(f"\nDASHBOARD_SECRET={secret}\n")
+            logger.info("Generated new DASHBOARD_SECRET and saved to .env")
+        except Exception as ex:
+            logger.warning(f"Could not persist DASHBOARD_SECRET to .env: {ex}")
+    return secret
+
+DASHBOARD_SECRET = get_or_create_dashboard_secret()
 
 log_queue = queue.Queue()
 
@@ -55,17 +84,50 @@ writer_thread.start()
 class DBLogHandler(logging.Handler):
     def emit(self, record):
         try:
-            # Put logging record into the thread-safe queue to keep it non-blocking
             log_queue.put((record.levelname, record.getMessage()))
         except Exception:
             pass
 
-# Add DB handler to root logger if not already present
 logger_obj = logging.getLogger("x_automation")
 if not any(isinstance(h, DBLogHandler) for h in logger_obj.handlers):
     db_handler = DBLogHandler()
     db_handler.setLevel(logging.INFO)
     logger_obj.addHandler(db_handler)
+
+
+# ── SSRF Security Helper ──────────────────────────────────────────────
+
+def validate_safe_url(url_str: str) -> str:
+    """
+    Validate that a URL uses http/https and does not target loopback,
+    private, or cloud metadata IP addresses (SSRF Protection).
+    """
+    if not url_str:
+        raise HTTPException(status_code=400, detail="URL cannot be empty")
+
+    parsed = urlparse(url_str.strip())
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(status_code=400, detail="Only http and https schemes are permitted")
+
+    hostname = parsed.hostname
+    if not hostname:
+        raise HTTPException(status_code=400, detail="Invalid host in URL")
+
+    # Block localhost / loopback string names directly
+    if hostname.lower() in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
+        raise HTTPException(status_code=400, detail="Access to local IP address or loopback is blocked")
+
+    try:
+        ip_addr = socket.gethostbyname(hostname)
+        ip = ipaddress.ip_address(ip_addr)
+        if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_multicast or ip.is_reserved:
+            raise HTTPException(status_code=400, detail="Access to private or restricted network addresses is blocked")
+    except socket.gaierror:
+        raise HTTPException(status_code=400, detail=f"Could not resolve hostname: '{hostname}'")
+    except ValueError:
+        pass
+
+    return url_str.strip()
 
 
 # ── App Lifecycle ─────────────────────────────────────────────────────
@@ -82,45 +144,35 @@ async def temp_media_garbage_collector():
                 for filename in os.listdir(TEMP_DIR):
                     filepath = os.path.join(TEMP_DIR, filename)
                     if os.path.isfile(filepath):
-                        # Get last modified time
                         mtime = os.path.getmtime(filepath)
-                        # Check if older than 12 hours (12 * 3600 seconds)
                         if now - mtime > 12 * 3600:
                             logger.info(f"GC: Purging stale temp file: {filename}")
                             try:
                                 os.remove(filepath)
-                                logger.info(f"GC: Purged stale temp file: {filename}")
                             except Exception as ex:
                                 logger.warning(f"GC: Failed to delete {filename}: {ex}")
         except Exception as e:
             logger.error(f"Error in temp media garbage collector: {e}")
             
-        # Wait 1 hour (3600 seconds)
         await asyncio.sleep(3600)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
-    # Startup
     db.init_db()
     logger.info("Database initialized")
 
-    # Reset stuck active post states
     db.reset_stuck_post_states()
     logger.info("Stuck post states reset successfully")
 
-    # Start garbage collector task
     gc_task = asyncio.create_task(temp_media_garbage_collector())
 
-    # Auto-start scheduler if not paused
     await scheduler.start()
     logger.info("Scheduler started")
 
     yield
 
-    # Shutdown
-    # Cancel GC task
     gc_task.cancel()
     try:
         await gc_task
@@ -130,11 +182,9 @@ async def lifespan(app: FastAPI):
     await scheduler.stop()
     logger.info("Scheduler stopped")
 
-    # Clean kill all currently running ffmpeg/ffprobe subprocesses
     from downloader import kill_active_processes
     kill_active_processes()
 
-    # Shutdown logging thread writer
     log_queue.put(None)
     writer_thread.join(timeout=2.0)
     logger.info("Scheduler stopped. Goodbye!")
@@ -142,29 +192,48 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="X Automation Bot",
-    description="Video Collector & Auto-Publisher for X/Twitter",
+    description="Video Collector & Multi-Platform Auto-Publisher Engine",
     version="1.0.0",
     lifespan=lifespan
 )
 
-# Restrict CORS to localhost
+# Dynamic CORS setup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8001", "http://127.0.0.1:8001"],
+    allow_origins=["http://localhost:8000", "http://127.0.0.1:8000", "http://localhost:8001", "http://127.0.0.1:8001"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# HTTP Security Headers Middleware
+# HTTP Security Headers & Authentication Middleware
 @app.middleware("http")
-async def add_security_headers(request: Request, call_next):
+async def security_and_auth_middleware(request: Request, call_next):
+    path = request.url.path
+
+    # Authenticate API endpoints
+    if path.startswith("/api/"):
+        auth_header = request.headers.get("Authorization", "")
+        token_param = request.query_params.get("auth_token", "")
+
+        token = ""
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+        elif token_param:
+            token = token_param.strip()
+
+        if not secrets.compare_digest(token, DASHBOARD_SECRET):
+            return JSONResponse(
+                {"detail": "Unauthorized. Invalid or missing Bearer token."},
+                status_code=401
+            )
+
     response = await call_next(request)
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Content-Security-Policy"] = (
-        "default-src 'self' 'unsafe-inline' 'unsafe-eval' "
-        "https://fonts.googleapis.com https://fonts.gstatic.com;"
+        "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src https://fonts.gstatic.com; script-src 'self'; img-src 'self' data:;"
     )
     return response
 
@@ -206,10 +275,26 @@ async def get_status():
 
 # ── Settings Endpoints ────────────────────────────────────────────────
 
+ALLOWED_SETTING_KEYS = {
+    "interval_minutes",
+    "caption_ai",
+    "gemini_api_key",
+    "caption_template",
+    "enable_scheduler_jitter",
+    "vertical_pad_mode",
+    "x_link_placement",
+    "webhook_url",
+    "telegram_bot_token",
+    "telegram_chat_id",
+    "caption_template_x",
+    "caption_template_instagram",
+    "caption_template_tiktok",
+    "mock_posting"
+}
+
 @app.get("/api/settings")
 async def get_settings():
     settings = await asyncio.to_thread(db.get_all_settings)
-    # Mask sensitive values securely
     masked = {}
     for key, value in settings.items():
         if any(s in key.lower() for s in ["key", "secret", "token", "password", "webhook"]):
@@ -225,11 +310,12 @@ async def save_settings(request: Request):
     if not isinstance(data, dict):
         raise HTTPException(status_code=400, detail="Expected JSON object")
 
-    # Don't overwrite sensitive fields with placeholder values
     clean = {}
     for key, value in data.items():
+        if key not in ALLOWED_SETTING_KEYS:
+            continue
         if isinstance(value, str) and value == "********":
-            continue  # Skip unchanged placeholder values
+            continue
         clean[key] = value
 
     await asyncio.to_thread(db.save_all_settings, clean)
@@ -241,18 +327,14 @@ async def save_settings(request: Request):
 async def test_webhook():
     """Send a test payload to the configured webhook URL."""
     try:
-        from scheduler import send_webhook_notification
-        # Use a dummy post ID like 9999
-        await send_webhook_notification(9999, "success", {
-            "title": "🎉 Webhook Test Notification",
-            "caption": "Your webhook integration for X Automation Bot is configured correctly!",
-            "platform": "x",
-            "account_label": "test_account",
-            "external_id": "https://localhost:8001"
+        from scheduler import send_system_notification
+        await send_system_notification("test", "🎉 Webhook Test Notification", {
+            "caption": "Your notification integration for X Automation Bot is configured correctly!",
+            "platform": "system"
         })
-        return {"status": "ok", "message": "Test webhook payload sent successfully."}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to send test webhook: {e}")
+        return {"status": "ok", "message": "Test notification payload sent successfully."}
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to send test notification payload")
 
 
 # ── Sources Endpoints ─────────────────────────────────────────────────
@@ -266,38 +348,23 @@ async def get_sources():
 @app.post("/api/sources")
 async def add_source(request: Request):
     data = await request.json()
-    url = data.get("url", "").strip()
-    name = data.get("name", "").strip()
-    platform = data.get("platform", "other").strip().lower()
-    
-    # Destination platforms (default to X only)
-    destinations = data.get("destinations", ["x"])
-    if not isinstance(destinations, list):
-        destinations = ["x"]
-    target_platforms = ",".join(destinations)
+    url = data.get("url", "")
+    name = data.get("name", "")
+    platform = data.get("platform", "other")
+    target_platforms = data.get("target_platforms", "x")
 
     if not url:
         raise HTTPException(status_code=400, detail="URL is required")
-    if not name:
-        name = url
 
-    # Auto-detect platform
-    if platform == "other":
-        if "youtube.com" in url or "youtu.be" in url:
-            platform = "youtube"
-        elif "tiktok.com" in url:
-            platform = "tiktok"
-        elif "instagram.com" in url:
-            platform = "instagram"
+    # SSRF Protection
+    validate_safe_url(url)
 
-    try:
-        source_id = await asyncio.to_thread(db.add_source, url, name, platform, target_platforms)
-        logger.info(f"Source added: {name} ({url}) -> targets: {target_platforms}")
-        return {"status": "ok", "id": source_id}
-    except Exception as e:
-        if "UNIQUE" in str(e):
-            raise HTTPException(status_code=409, detail="Source URL already exists")
-        raise HTTPException(status_code=500, detail=str(e))
+    source_id = await asyncio.to_thread(db.add_source, url, name, platform, target_platforms)
+    if source_id is None:
+        raise HTTPException(status_code=409, detail="Source URL already exists")
+
+    logger.info(f"Source added: {name} ({url}) -> targets: {target_platforms}")
+    return {"status": "ok", "id": source_id}
 
 
 @app.delete("/api/sources/{source_id}")
@@ -320,6 +387,8 @@ async def toggle_source(source_id: int, request: Request):
 @app.get("/api/accounts")
 async def get_accounts():
     accounts = await asyncio.to_thread(db.get_accounts, decrypt=False)
+    for acct in accounts:
+        acct.pop("credentials_enc", None)
     return accounts
 
 
@@ -366,7 +435,7 @@ async def validate_account_credentials(platform: str, auth_mode: str, creds: dic
         return True
     except Exception as e:
         logger.warning(f"Pre-flight verification failed: {e}")
-        raise ValueError(f"Credentials validation failed: {e}")
+        raise ValueError(f"Credentials validation failed")
 
 
 @app.post("/api/accounts")
@@ -387,10 +456,8 @@ async def add_account(request: Request):
     user_agent = data.get("user_agent")
     user_agent = user_agent.strip() if user_agent else None
     
-    # Extract credentials dictionary
     creds = data.get("credentials")
     if not creds or not isinstance(creds, dict):
-        # Fallback to flat dictionary for backward compatibility
         creds = {}
         for k, v in data.items():
             if k not in ("label", "platform", "auth_mode", "proxy_url", "user_agent"):
@@ -400,11 +467,10 @@ async def add_account(request: Request):
         raise HTTPException(status_code=400, detail="Label is required")
 
     try:
-        # Pre-flight validation
         try:
             await validate_account_credentials(platform, auth_mode, creds, proxy_url, user_agent)
-        except Exception as ve:
-            raise HTTPException(status_code=400, detail=str(ve))
+        except Exception:
+            raise HTTPException(status_code=400, detail="Account credentials verification failed")
 
         account_id = await asyncio.to_thread(
             db.add_account, 
@@ -422,7 +488,7 @@ async def add_account(request: Request):
     except Exception as e:
         if "UNIQUE" in str(e):
             raise HTTPException(status_code=409, detail=f"Account '{label}' already exists on {platform}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error adding account")
 
 
 @app.delete("/api/accounts/{label}")
@@ -432,15 +498,13 @@ async def remove_account(label: str, platform: str = None):
     return {"status": "ok"}
 
 
-# ── History Endpoint ──────────────────────────────────────────────────
+# ── History & Logs Endpoints ─────────────────────────────────────────
 
 @app.get("/api/history")
 async def get_history(limit: int = 50):
-    history = await asyncio.to_thread(db.get_recent_posts, limit)
-    return history
+    posts = await asyncio.to_thread(db.get_history, limit)
+    return posts
 
-
-# ── Logs Endpoint ─────────────────────────────────────────────────────
 
 @app.get("/api/logs")
 async def get_logs(limit: int = 100):
@@ -448,99 +512,98 @@ async def get_logs(limit: int = 100):
     return logs
 
 
-# ── Manual Actions ────────────────────────────────────────────────────
+# ── Manual Trigger Endpoints ──────────────────────────────────────────
 
 @app.post("/api/run")
 async def trigger_run():
-    """Trigger an immediate scheduler cycle."""
-    if scheduler.paused:
-        return {"status": "error", "message": "Scheduler is paused. Resume it first."}
-
-    logger.info("Manual run triggered")
-    asyncio.create_task(scheduler.run_cycle())
-    return {"status": "ok", "message": "Scheduler cycle triggered"}
+    if scheduler.running and not scheduler.paused:
+        asyncio.create_task(scheduler.run_cycle())
+        logger.info("Manual cycle trigger received")
+        return {"status": "ok", "message": "Scheduler cycle triggered"}
+    else:
+        return {"status": "warning", "message": "Scheduler is paused or stopped"}
 
 
 @app.post("/api/pause")
-async def toggle_pause():
-    """Toggle scheduler pause state."""
-    if scheduler.paused:
-        scheduler.resume()
-        return {"status": "ok", "paused": False, "message": "Scheduler resumed"}
-    else:
-        scheduler.pause()
-        return {"status": "ok", "paused": True, "message": "Scheduler paused"}
+async def pause_scheduler():
+    scheduler.pause()
+    logger.info("Scheduler paused via API")
+    return {"status": "ok", "paused": True}
 
 
-# ── Quick Post (manual one-off) ──────────────────────────────────────
+@app.post("/api/resume")
+async def resume_scheduler():
+    scheduler.resume()
+    logger.info("Scheduler resumed via API")
+    return {"status": "ok", "paused": False}
+
 
 @app.post("/api/quick-post")
 async def quick_post(request: Request):
-    """Post a single video URL immediately without going through the scheduler."""
+    """Instantly process and publish a single video URL."""
     data = await request.json()
     url = data.get("url", "").strip()
-    caption = data.get("caption", "").strip()
-    account_label = data.get("account", "").strip()
+    caption_override = data.get("caption", "").strip()
     platform = data.get("platform", "x").strip().lower()
 
     if not url:
         raise HTTPException(status_code=400, detail="URL is required")
 
-    # Get account
-    if account_label:
-        account = await asyncio.to_thread(db.get_account, account_label, platform)
-    else:
-        account = await asyncio.to_thread(db.get_least_used_account, platform)
+    # SSRF Protection
+    validate_safe_url(url)
 
+    account = await asyncio.to_thread(db.get_least_used_account, platform)
     if not account:
-        raise HTTPException(status_code=400, detail=f"No {platform.upper()} account available")
+        raise HTTPException(status_code=400, detail=f"No active accounts configured for {platform.upper()}")
 
-    # Create post record with 'downloading' status directly to prevent scheduler race conditions
-    post_id = await asyncio.to_thread(db.add_post, url, caption or url, platform=platform, status="downloading")
+    post_id = await asyncio.to_thread(
+        db.add_ingested_post,
+        video_id=url,
+        title="Quick Post",
+        caption=caption_override,
+        media_type="video",
+        media_path=url,
+        platform=platform,
+        status="processing",
+        requires_approval=0
+    )
     logger.info(f"Quick post triggered ({platform}): {url}")
 
-    # Process in background
     async def _process():
+        from downloader import fetch_metadata, download_video, transcode_for_x, cleanup
+        from caption_gen import generate_caption
+        from publisher import get_publisher
+
         raw_path = None
         transcoded_path = None
         try:
-            from publisher import get_publisher
-            from downloader import download_video, transcode_for_platform, cleanup, fetch_metadata
-
-            # Fetch metadata to extract actual short video ID
-            meta = {}
-            has_media = True
+            meta = None
             try:
                 meta = await asyncio.to_thread(fetch_metadata, url)
-                video_id = meta.get("video_id")
-                if video_id:
-                    await asyncio.to_thread(db.update_post_video_id, post_id, video_id)
+                if meta and meta.get("title"):
+                    await asyncio.to_thread(db.update_post_title, post_id, meta["title"])
             except Exception as me:
                 logger.warning(f"Failed to fetch metadata for video ID update: {me}")
-                has_media = False
 
-            if has_media:
-                try:
-                    raw_path = await asyncio.to_thread(download_video, url)
-                    await asyncio.to_thread(db.update_post_status, post_id, "transcoding")
-                    transcoded_path = await transcode_for_platform(raw_path, platform)
-                except Exception as de:
-                    logger.warning(f"Failed to download/transcode video media: {de}")
-                    has_media = False
+            title = meta.get("title", "") if meta else ""
+            desc = meta.get("description", "") if meta else ""
 
-            if not has_media:
-                if platform.lower() in ("instagram", "tiktok"):
-                    raise ValueError(f"Platform {platform.upper()} requires a video file, but no media could be downloaded/transcoded.")
-                else:
-                    logger.info(f"No media available. Proceeding with text-only post for {platform.upper()}")
+            await asyncio.to_thread(db.update_post_status, post_id, "downloading")
+            try:
+                raw_path = await asyncio.to_thread(download_video, url)
+                await asyncio.to_thread(db.update_post_status, post_id, "transcoding")
+                transcoded_path = await asyncio.to_thread(transcode_for_x, raw_path, platform=platform)
+            except Exception as de:
+                logger.warning(f"Failed to download/transcode video media: {de}")
+                transcoded_path = None
 
-            if not caption:
-                from caption_gen import generate_caption
-                generated = await asyncio.to_thread(generate_caption, meta.get("title", ""), meta.get("description", ""), None, platform)
+            if caption_override:
+                generated = caption_override
+            elif title:
+                generated = await asyncio.to_thread(generate_caption, title, desc, platform=platform)
             else:
                 generated = caption
 
-            # Check X reply link placement
             reply_link = None
             if platform == "x":
                 x_link_placement = await asyncio.to_thread(db.get_setting, "x_link_placement", "thread_reply")
@@ -561,9 +624,8 @@ async def quick_post(request: Request):
             await asyncio.to_thread(db.increment_post_count, account["label"], platform)
             logger.info(f"Quick post success ({platform}): {tweet.get('url', '')}")
 
-            # Send Webhook success notification
-            from scheduler import send_webhook_notification
-            asyncio.create_task(send_webhook_notification(post_id, "success", {
+            from scheduler import send_system_notification
+            asyncio.create_task(send_system_notification("post_success", "Post Published Successfully", {
                 "title": meta.get("title", "") if meta else url,
                 "caption": generated,
                 "platform": platform,
@@ -574,8 +636,8 @@ async def quick_post(request: Request):
         except Exception as e:
             await asyncio.to_thread(db.update_post_status, post_id, "failed", error_msg=str(e))
             logger.error(f"Quick post failed ({platform}): {e}")
-            from scheduler import send_webhook_notification
-            asyncio.create_task(send_webhook_notification(post_id, "failed", {
+            from scheduler import send_system_notification
+            asyncio.create_task(send_system_notification("post_failed", "Quick Post Failed", {
                 "title": url,
                 "platform": platform,
                 "error_msg": str(e)
@@ -590,35 +652,68 @@ async def quick_post(request: Request):
     return {"status": "ok", "post_id": post_id, "message": "Processing in background"}
 
 
-# ── Multi-Format Ingestion & Approval Queue Endpoints ────────────────
+# ── Multi-Format Ingestion & Upload Hardening ────────────────────────
+
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB limit
+
+ALLOWED_MAGIC_HEADERS = [
+    b"\x00\x00\x00",     # MP4 / MOV container ftyp
+    b"RIFF",             # AVI / WEBP
+    b"\x1a\x45\xdf\xa3", # WebM / MKV
+    b"\x89PNG",          # PNG image
+    b"\xff\xd8\xff",     # JPEG image
+    b"GIF8"              # GIF image
+]
 
 @app.post("/api/upload")
 async def upload_file(file: UploadFile = File(...)):
-    """Upload media file (video/image) to persistent uploads/ directory."""
+    """Upload media file (video/image) with size limit, UUID naming, and magic byte validation."""
+    filename = os.path.basename(file.filename)
     allowed_exts = {".mp4", ".mov", ".avi", ".webm", ".png", ".jpg", ".jpeg", ".webp"}
-    ext = os.path.splitext(file.filename)[1].lower()
+    ext = os.path.splitext(filename)[1].lower()
     
     if ext not in allowed_exts:
         raise HTTPException(status_code=400, detail=f"Unsupported file extension: '{ext}'")
 
-    media_type = "video" if ext in {".mp4", ".mov", ".avi", ".webm"} else "image"
-    safe_name = f"{int(time.time())}_{file.filename.replace(' ', '_')}"
-    target_path = os.path.join(UPLOADS_DIR, safe_name)
+    # Read first 8 KB to validate magic bytes and size limit
+    header = await file.read(8192)
+    if not header:
+        raise HTTPException(status_code=400, detail="Empty upload file")
 
+    if not any(header.startswith(magic) or magic in header[:32] for magic in ALLOWED_MAGIC_HEADERS):
+        raise HTTPException(status_code=400, detail="Invalid file header signature")
+
+    # Generate secure UUID filename
+    unique_filename = f"{uuid.uuid4().hex}{ext}"
+    target_path = os.path.join(UPLOADS_DIR, unique_filename)
+
+    total_size = len(header)
     try:
-        contents = await file.read()
         with open(target_path, "wb") as f:
-            f.write(contents)
+            f.write(header)
+            while chunk := await file.read(65536):
+                total_size += len(chunk)
+                if total_size > MAX_UPLOAD_BYTES:
+                    f.close()
+                    if os.path.exists(target_path):
+                        os.remove(target_path)
+                    raise HTTPException(status_code=413, detail="File size exceeds maximum 50MB upload limit")
+                f.write(chunk)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to save uploaded file: {e}")
-        raise HTTPException(status_code=500, detail=f"File save failed: {e}")
+        if os.path.exists(target_path):
+            os.remove(target_path)
+        raise HTTPException(status_code=500, detail="File save failed")
 
-    relative_path = os.path.join("uploads", safe_name).replace("\\", "/")
-    logger.info(f"File uploaded successfully: {relative_path} ({media_type})")
+    media_type = "video" if ext in {".mp4", ".mov", ".avi", ".webm"} else "image"
+    relative_path = os.path.join("uploads", unique_filename).replace("\\", "/")
+    logger.info(f"File uploaded successfully: {relative_path} ({media_type}, {total_size} bytes)")
     
     return {
         "status": "success",
-        "filename": file.filename,
+        "filename": filename,
         "file_path": relative_path,
         "media_type": media_type
     }
@@ -635,17 +730,19 @@ async def ingest_post(request: Request):
     title = data.get("title", "").strip() or caption[:50] or "Untitled Content"
     media_path = data.get("media_path", "").strip()
     url = data.get("url", "").strip()
+
+    if url:
+        validate_safe_url(url)
+
     target_platforms = data.get("target_platforms", ["x"])
     account_label = data.get("account", "").strip() or None
     requires_approval = 1 if data.get("requires_approval", True) else 0
     status = "pending_approval" if requires_approval else "approved"
     raw_scheduled_at = data.get("scheduled_at", "").strip() or None
     
-    # Format scheduled_at ISO timestamp
     scheduled_at = None
     if raw_scheduled_at:
         try:
-            # Parse datetime string from datetime-local input
             dt = datetime.fromisoformat(raw_scheduled_at.replace("Z", "+00:00"))
             scheduled_at = dt.strftime("%Y-%m-%d %H:%M:%S")
         except Exception:
@@ -675,7 +772,7 @@ async def ingest_post(request: Request):
         )
         created_ids.append(post_id)
 
-    logger.info(f"Ingested {len(created_ids)} post item(s) for platforms {target_platforms} with status '{status}' (scheduled_at={scheduled_at})")
+    logger.info(f"Ingested {len(created_ids)} post item(s) for platforms {target_platforms} with status '{status}'")
     return {"status": "success", "post_ids": created_ids, "queue_status": status, "scheduled_at": scheduled_at}
 
 
@@ -742,8 +839,8 @@ async def get_accounts_health():
 @app.get("/api/system/backup")
 async def export_system_backup():
     """
-    Generate a downloadable ZIP backup of bot.db and .env configuration.
-    Zero external dependencies (uses built-in zipfile module).
+    Generate a downloadable ZIP backup of bot.db and non-sensitive settings configuration.
+    SECURITY HARDENING: .env is NEVER included in backups.
     """
     import zipfile
     
@@ -755,16 +852,29 @@ async def export_system_backup():
     zip_path = os.path.join(temp_dir, zip_name)
 
     db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bot.db")
-    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
 
     try:
+        # Create non-sensitive settings export
+        settings = await asyncio.to_thread(db.get_all_settings)
+        export_settings = {}
+        for k, v in settings.items():
+            if not any(s in k.lower() for s in ["key", "secret", "token", "password"]):
+                export_settings[k] = v
+
+        settings_json_path = os.path.join(temp_dir, f"settings_export_{timestamp}.json")
+        with open(settings_json_path, "w", encoding="utf-8") as sf:
+            json.dump(export_settings, sf, indent=2)
+
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
             if os.path.exists(db_path):
                 zipf.write(db_path, arcname="bot.db")
-            if os.path.exists(env_path):
-                zipf.write(env_path, arcname=".env")
+            if os.path.exists(settings_json_path):
+                zipf.write(settings_json_path, arcname="settings_config.json")
                 
-        logger.info(f"System backup generated: {zip_name}")
+        if os.path.exists(settings_json_path):
+            os.remove(settings_json_path)
+
+        logger.info(f"System backup generated (excluding secrets): {zip_name}")
         return FileResponse(
             zip_path,
             media_type="application/zip",
@@ -772,16 +882,13 @@ async def export_system_backup():
         )
     except Exception as e:
         logger.error(f"Failed to generate backup ZIP: {e}")
-        raise HTTPException(status_code=500, detail=f"Backup creation failed: {e}")
+        raise HTTPException(status_code=500, detail="Backup creation failed")
 
 
 # ── Entry Point ───────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    from dotenv import load_dotenv
-    load_dotenv()
-
-    host = os.getenv("HOST", "0.0.0.0")
+    host = os.getenv("HOST", "127.0.0.1")
     port = int(os.getenv("PORT", "8000"))
 
     print(f"\n  X Automation Bot starting...")

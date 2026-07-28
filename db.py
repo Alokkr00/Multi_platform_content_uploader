@@ -428,6 +428,8 @@ def get_sources(active_only: bool = False) -> list[dict]:
     finally:
         conn.close()
 
+get_all_sources = get_sources
+
 
 @retry_on_lock()
 def get_source(source_id: int) -> dict | None:
