@@ -502,7 +502,7 @@ async def remove_account(label: str, platform: str = None):
 
 @app.get("/api/history")
 async def get_history(limit: int = 50):
-    posts = await asyncio.to_thread(db.get_history, limit)
+    posts = await asyncio.to_thread(db.get_recent_posts, limit)
     return posts
 
 
@@ -570,7 +570,7 @@ async def quick_post(request: Request):
     logger.info(f"Quick post triggered ({platform}): {url}")
 
     async def _process():
-        from downloader import fetch_metadata, download_video, transcode_for_x, cleanup
+        from downloader import fetch_metadata, download_video, transcode_for_platform, cleanup
         from caption_gen import generate_caption
         from publisher import get_publisher
 
@@ -581,7 +581,9 @@ async def quick_post(request: Request):
             try:
                 meta = await asyncio.to_thread(fetch_metadata, url)
                 if meta and meta.get("title"):
-                    await asyncio.to_thread(db.update_post_title, post_id, meta["title"])
+                    conn = db.get_connection()
+                    conn.execute("UPDATE posts_history SET title = ? WHERE id = ?", (meta["title"], post_id))
+                    conn.commit()
             except Exception as me:
                 logger.warning(f"Failed to fetch metadata for video ID update: {me}")
 
@@ -592,7 +594,7 @@ async def quick_post(request: Request):
             try:
                 raw_path = await asyncio.to_thread(download_video, url)
                 await asyncio.to_thread(db.update_post_status, post_id, "transcoding")
-                transcoded_path = await asyncio.to_thread(transcode_for_x, raw_path, platform=platform)
+                transcoded_path = await transcode_for_platform(raw_path, platform)
             except Exception as de:
                 logger.warning(f"Failed to download/transcode video media: {de}")
                 transcoded_path = None
