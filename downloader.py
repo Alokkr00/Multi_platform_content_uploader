@@ -598,6 +598,9 @@ async def transcode_for_platform(input_path: str, platform: str = "x", output_pa
     elif platform == "tiktok":
         max_duration = 600
         target_w, target_h = 1080, 1920
+    elif platform == "youtube":
+        max_duration = 60
+        target_w, target_h = 1080, 1920
     else:
         max_duration = 140
         target_w, target_h = 1920, 1080
@@ -631,7 +634,7 @@ async def transcode_for_platform(input_path: str, platform: str = "x", output_pa
 
     # Aspect ratio adjustment to 9:16 vertical (crop/pad/blur_background filter)
     vf_filters = []
-    if platform in ("instagram", "tiktok"):
+    if platform in ("instagram", "tiktok", "youtube"):
         vertical_pad_mode = "blur_background"
         try:
             vertical_pad_mode = get_setting("vertical_pad_mode", "blur_background").strip().lower()

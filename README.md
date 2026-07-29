@@ -23,10 +23,11 @@ The code includes session caching, request jitter, and proxy support to reduce d
 | Platform | What Works | What Doesn't |
 |:---|:---|:---|
 | **X (Twitter)** | ✅ Official API v1.1/v2 via Tweepy (chunked video upload, tweets, reply threads, photo posts). ✅ Cookie/session mode via Twikit as fallback. | Cookie mode carries ban risk. |
+| **YouTube (Shorts)** | ✅ Official OAuth 2.0 API via YouTube Data API v3 (resumable video upload, auto `#Shorts` tagging, 9:16 60s transcode, analytics). | Unverified API projects upload in `private` status unless the app is verified or target channels are added as GCP test users. |
 | **Instagram** | ⚠️ Cookie mode only via `instagrapi` (Reels, photos, analytics). Works but fragile. | ❌ Graph API path is stubbed — it requires videos hosted on a public URL + Facebook App Review. Not implemented. |
 | **TikTok** | ❌ Pure stub. All production methods raise `NotImplementedError`. | Architecture is scaffolded but nothing works. Requires TikTok developer app approval. |
 
-**Honest summary**: This is an X posting tool with experimental Instagram support. TikTok is placeholder code.
+**Honest summary**: Supports X (official + cookie), YouTube Shorts (official OAuth), and experimental Instagram. TikTok is placeholder code.
 
 ---
 

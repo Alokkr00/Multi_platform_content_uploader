@@ -306,7 +306,12 @@ class XPublisher(BasePublisher):
 def get_publisher(account_dict: dict) -> BasePublisher:
     """Factory to load the correct publisher at runtime."""
     from db import get_setting
-    mock_posting = get_setting("mock_posting", "false").lower() == "true" or os.getenv("MOCK_POSTING", "false").lower() == "true"
+    mock_posting = (
+        get_setting("mock_posting", "false").lower() == "true" 
+        or os.getenv("MOCK_POSTING", "false").lower() == "true"
+        or bool(account_dict.get("mock_posting"))
+        or bool(account_dict.get("mock"))
+    )
 
     platform = account_dict.get("platform", "x")
     label = account_dict.get("label", "unknown")
@@ -344,6 +349,15 @@ def get_publisher(account_dict: dict) -> BasePublisher:
             credentials=account_dict,
             mock=mock_posting
         )
+    elif platform == "youtube":
+        from youtube_publisher import YouTubePublisher
+        return YouTubePublisher(
+            label=label,
+            client_id=account_dict.get("client_id"),
+            client_secret=account_dict.get("client_secret"),
+            refresh_token=account_dict.get("refresh_token"),
+            mock_posting=mock_posting
+        )
     else:
         raise ValueError(f"Unsupported platform: {platform}")
 
@@ -352,7 +366,7 @@ async def post_with_account(account_dict: dict, url: str, caption: str) -> dict:
     """
     Convenience function to post a video tweet using an account dictionary (routes dynamically).
     """
-    from db import get_setting
+    from db import get_setting, get_daily_limit
     mock_posting = get_setting("mock_posting", "false").lower() == "true" or os.getenv("MOCK_POSTING", "false").lower() == "true"
 
     label = account_dict.get("label", "unknown")
@@ -360,9 +374,10 @@ async def post_with_account(account_dict: dict, url: str, caption: str) -> dict:
 
     if not mock_posting:
         # Check daily post limit
+        daily_limit = get_daily_limit(platform)
         post_count = account_dict.get("post_count_today", 0)
-        if post_count >= DAILY_POST_LIMIT:
-            msg = f"Account '{label}' ({platform}) has reached the daily post limit ({DAILY_POST_LIMIT}/day)"
+        if post_count >= daily_limit:
+            msg = f"Account '{label}' ({platform}) has reached the daily post limit ({daily_limit}/day)"
             logger.error(msg)
             raise RuntimeError(msg)
 

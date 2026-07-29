@@ -432,6 +432,15 @@ async def validate_account_credentials(platform: str, auth_mode: str, creds: dic
             )
             if auth_mode == "cookie":
                 await asyncio.to_thread(pub._login_instagrapi)
+        elif platform == "youtube":
+            from youtube_publisher import YouTubePublisher
+            pub = YouTubePublisher(
+                label="verification_test",
+                client_id=creds.get("client_id"),
+                client_secret=creds.get("client_secret"),
+                refresh_token=creds.get("refresh_token")
+            )
+            await pub._ensure_access_token()
         return True
     except Exception as e:
         logger.warning(f"Pre-flight verification failed: {e}")

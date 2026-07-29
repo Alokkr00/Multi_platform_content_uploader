@@ -135,8 +135,8 @@ def init_db():
             CREATE TABLE IF NOT EXISTS accounts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 label TEXT NOT NULL,
-                platform TEXT NOT NULL CHECK(platform IN ('x', 'instagram', 'tiktok')),
-                auth_mode TEXT NOT NULL CHECK(auth_mode IN ('api', 'cookie')),
+                platform TEXT NOT NULL CHECK(platform IN ('x', 'instagram', 'tiktok', 'youtube')),
+                auth_mode TEXT NOT NULL CHECK(auth_mode IN ('api', 'cookie', 'oauth')),
                 credentials_enc TEXT NOT NULL,
                 added_at TEXT DEFAULT (datetime('now')),
                 last_used_at TEXT,
@@ -194,6 +194,43 @@ def init_db():
                     logger.info("sources table migrated successfully to expand platform CHECK constraint.")
         except Exception as ex:
             logger.error(f"Failed to migrate sources table check constraint: {ex}")
+
+        # Migrate accounts table to expand platform and auth_mode check constraints if needed
+        try:
+            cursor = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='accounts'")
+            row = cursor.fetchone()
+            if row:
+                sql = row[0]
+                if "youtube" not in sql or "oauth" not in sql:
+                    logger.info("Migrating accounts table to support youtube and oauth...")
+                    conn.execute("PRAGMA foreign_keys=OFF")
+                    conn.execute("""
+                        CREATE TABLE IF NOT EXISTS accounts_new (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            label TEXT NOT NULL,
+                            platform TEXT NOT NULL CHECK(platform IN ('x', 'instagram', 'tiktok', 'youtube')),
+                            auth_mode TEXT NOT NULL CHECK(auth_mode IN ('api', 'cookie', 'oauth')),
+                            credentials_enc TEXT NOT NULL,
+                            added_at TEXT DEFAULT (datetime('now')),
+                            last_used_at TEXT,
+                            post_count_today INTEGER DEFAULT 0,
+                            daily_reset_date TEXT DEFAULT (date('now')),
+                            is_active INTEGER DEFAULT 1,
+                            UNIQUE(platform, label)
+                        )
+                    """)
+                    conn.execute("""
+                        INSERT INTO accounts_new (id, label, platform, auth_mode, credentials_enc, added_at, last_used_at, post_count_today, daily_reset_date, is_active)
+                        SELECT id, label, platform, auth_mode, credentials_enc, added_at, last_used_at, post_count_today, daily_reset_date, is_active FROM accounts
+                    """)
+                    conn.execute("DROP TABLE accounts")
+                    conn.execute("ALTER TABLE accounts_new RENAME TO accounts")
+                    conn.execute("PRAGMA foreign_keys=ON")
+                    conn.commit()
+                    logger.info("accounts table migrated successfully for youtube and oauth.")
+        except Exception as ex:
+            logger.error(f"Failed to migrate accounts table check constraint: {ex}")
+
 
         # Add platform to posts_history
         try:
@@ -493,6 +530,22 @@ def add_account(label: str, platform: str, auth_mode: str, credentials: dict, pr
         return cursor.lastrowid
     finally:
         conn.close()
+
+
+DAILY_LIMITS = {
+    "x": 50,
+    "instagram": 10,
+    "tiktok": 20,
+    "youtube": 8
+}
+
+def get_daily_limit(platform: str) -> int:
+    """Get daily post limit for a platform, with configurable setting override."""
+    default = DAILY_LIMITS.get(platform.lower(), 20)
+    custom = get_setting(f"daily_limit_{platform.lower()}", "")
+    if custom.isdigit():
+        return int(custom)
+    return default
 
 
 @retry_on_lock()

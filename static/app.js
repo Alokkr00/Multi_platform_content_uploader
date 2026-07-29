@@ -132,7 +132,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const acctTtOpenId = document.getElementById('acct-tt-open-id');
   const acctTtSessionId = document.getElementById('acct-tt-session-id');
   const acctTtUserAgent = document.getElementById('acct-tt-user-agent');
-  
+
+  const acctYoutubeOauthFields = document.getElementById('acct-youtube-oauth-fields');
+  const acctYtClientId = document.getElementById('acct-yt-client-id');
+  const acctYtClientSecret = document.getElementById('acct-yt-client-secret');
+  const acctYtRefreshToken = document.getElementById('acct-yt-refresh-token');
+
   const accountsList = document.getElementById('accounts-list');
   
   // Settings Tab
@@ -677,31 +682,34 @@ document.addEventListener('DOMContentLoaded', () => {
     const authMode = acctAuthMode ? acctAuthMode.value : 'api';
     
     // Hide all first
-    acctApiFields.style.display = 'none';
-    acctCookieFields.style.display = 'none';
-    acctInstagramApiFields.style.display = 'none';
-    acctInstagramCookieFields.style.display = 'none';
-    acctTikTokApiFields.style.display = 'none';
-    acctTikTokCookieFields.style.display = 'none';
+    if (acctApiFields) acctApiFields.style.display = 'none';
+    if (acctCookieFields) acctCookieFields.style.display = 'none';
+    if (acctInstagramApiFields) acctInstagramApiFields.style.display = 'none';
+    if (acctInstagramCookieFields) acctInstagramCookieFields.style.display = 'none';
+    if (acctTikTokApiFields) acctTikTokApiFields.style.display = 'none';
+    if (acctTikTokCookieFields) acctTikTokCookieFields.style.display = 'none';
+    if (acctYoutubeOauthFields) acctYoutubeOauthFields.style.display = 'none';
     
     if (platform === 'x') {
       if (authMode === 'api') {
-        acctApiFields.style.display = 'flex';
+        if (acctApiFields) acctApiFields.style.display = 'flex';
       } else {
-        acctCookieFields.style.display = 'flex';
+        if (acctCookieFields) acctCookieFields.style.display = 'flex';
       }
     } else if (platform === 'instagram') {
       if (authMode === 'api') {
-        acctInstagramApiFields.style.display = 'flex';
+        if (acctInstagramApiFields) acctInstagramApiFields.style.display = 'flex';
       } else {
-        acctInstagramCookieFields.style.display = 'flex';
+        if (acctInstagramCookieFields) acctInstagramCookieFields.style.display = 'flex';
       }
     } else if (platform === 'tiktok') {
       if (authMode === 'api') {
-        acctTikTokApiFields.style.display = 'flex';
+        if (acctTikTokApiFields) acctTikTokApiFields.style.display = 'flex';
       } else {
-        acctTikTokCookieFields.style.display = 'flex';
+        if (acctTikTokCookieFields) acctTikTokCookieFields.style.display = 'flex';
       }
+    } else if (platform === 'youtube') {
+      if (acctYoutubeOauthFields) acctYoutubeOauthFields.style.display = 'flex';
     }
   }
 
@@ -793,6 +801,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         credentials = { session_id, user_agent: tt_user_agent };
       }
+    } else if (platform === 'youtube') {
+      const client_id = acctYtClientId.value.trim();
+      const client_secret = acctYtClientSecret.value.trim();
+      const refresh_token = acctYtRefreshToken.value.trim();
+      if (!client_id || !client_secret || !refresh_token) {
+        showToast('Client ID, Client Secret, and Refresh Token are required for YouTube OAuth', 'warning');
+        return;
+      }
+      credentials = { client_id, client_secret, refresh_token };
     }
     
     const payload = { label, platform, auth_mode, credentials, proxy_url, user_agent };

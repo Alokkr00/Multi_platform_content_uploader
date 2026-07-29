@@ -299,6 +299,9 @@
               <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.95rem; user-select: none;">
                 <input type="checkbox" name="destinations" value="tiktok" style="cursor: pointer;" /> TikTok
               </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.95rem; user-select: none;">
+                <input type="checkbox" name="destinations" value="youtube" style="cursor: pointer;" /> YouTube (Shorts)
+              </label>
             </div>
           </div>
         </div>
@@ -314,7 +317,7 @@
     <!-- Accounts Tab -->
     <section id="panel-accounts" class="tab-panel">
       <div class="panel-header">
-        <h2>X Accounts</h2>
+        <h2>Connected Accounts</h2>
       </div>
       <form id="form-add-account" class="glass-form" autocomplete="off">
         <div class="form-row">
@@ -324,17 +327,19 @@
               <option value="x">X (Twitter)</option>
               <option value="instagram">Instagram</option>
               <option value="tiktok">TikTok</option>
+              <option value="youtube">YouTube (Shorts)</option>
             </select>
           </div>
           <div class="form-group flex-1">
             <label for="acct-label">Label</label>
-            <input type="text" id="acct-label" placeholder="@my_bot" required />
+            <input type="text" id="acct-label" placeholder="@my_channel" required />
           </div>
           <div class="form-group flex-1">
             <label for="acct-auth-mode">Auth Mode</label>
             <select id="acct-auth-mode">
               <option value="api">Official API Keys</option>
               <option value="cookie">Session Cookie</option>
+              <option value="oauth">OAuth 2.0 Token</option>
             </select>
           </div>
         </div>
@@ -415,6 +420,22 @@
           <div class="form-group flex-1">
             <label for="acct-tt-open-id">Open ID</label>
             <input type="text" id="acct-tt-open-id" placeholder="open_id" />
+          </div>
+        </div>
+
+        <!-- YouTube OAuth fields -->
+        <div class="form-row" id="acct-youtube-oauth-fields" style="margin-top: 1rem; display: none;">
+          <div class="form-group flex-1">
+            <label for="acct-yt-client-id">Client ID</label>
+            <input type="password" id="acct-yt-client-id" placeholder="••••.apps.googleusercontent.com" />
+          </div>
+          <div class="form-group flex-1">
+            <label for="acct-yt-client-secret">Client Secret</label>
+            <input type="password" id="acct-yt-client-secret" placeholder="GOCSPX-••••" />
+          </div>
+          <div class="form-group flex-1">
+            <label for="acct-yt-refresh-token">Refresh Token</label>
+            <input type="password" id="acct-yt-refresh-token" placeholder="1//04••••" />
           </div>
         </div>
 
