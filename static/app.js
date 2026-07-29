@@ -354,7 +354,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         const hasErrorClass = post.status === 'failed' && post.error_msg ? 'has-error' : '';
-        const errorDataAttr = post.status === 'failed' && post.error_msg ? `data-error="Error: ${post.error_msg}"` : '';
+        const errorDataAttr = post.status === 'failed' && post.error_msg ? `data-error="Error: ${escapeHtml(post.error_msg)}"` : '';
         
         const platform = post.platform || 'x';
         const displayPlatform = platform.toUpperCase();
@@ -375,7 +375,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return `
           <div class="post-card ${hasErrorClass}" ${errorDataAttr}>
             <div class="post-card-header">
-              <span class="post-title" title="${post.title || post.video_id}">${post.title || post.video_id}</span>
+              <span class="post-title" title="${escapeHtml(post.title || post.video_id)}">${escapeHtml(post.title || post.video_id)}</span>
               <div style="display: flex; gap: 0.5rem; align-items: center; flex-shrink: 0;">
                 <span class="item-badge-platform platform-${platform}">${platform}</span>
                 <div class="post-status-icon ${statusClass}" title="Status: ${post.status}">
@@ -383,7 +383,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
               </div>
             </div>
-            <p class="post-caption">${post.caption || 'No caption generated'}</p>
+            <p class="post-caption">${escapeHtml(post.caption || 'No caption generated')}</p>
             <div class="post-card-stats-row" style="display: flex; gap: 0.75rem; margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-muted); opacity: 0.85;">
               <span title="Views">👁️ ${post.views || 0}</span>
               <span title="Likes">❤️ ${post.likes || 0}</span>
@@ -392,7 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
             <div class="post-card-footer" style="margin-top: 0.75rem; display: flex; justify-content: space-between; align-items: center;">
               <div>
-                <span class="post-acct">${post.account_label ? '@' + post.account_label.replace('@', '') : 'Auto'}</span>
+                <span class="post-acct">${post.account_label ? '@' + escapeHtml(post.account_label.replace('@', '')) : 'Auto'}</span>
                 <span style="margin-left: 0.5rem;">${formatTimestamp(post.posted_at || post.created_at)}</span>
               </div>
               <div style="display: flex; gap: 0.5rem; align-items: center;">
@@ -450,11 +450,11 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="list-item">
             <div class="item-meta">
               <div class="item-title">
-                <span>${source.name || 'Unnamed Source'}</span>
+                <span>${escapeHtml(source.name || 'Unnamed Source')}</span>
                 <span class="item-badge-platform">${source.platform}</span>
                 ${targetBadges}
               </div>
-              <div class="item-subtitle">${source.url}</div>
+              <div class="item-subtitle">${escapeHtml(source.url)}</div>
             </div>
             <div class="item-actions">
               <label class="toggle-switch sm">
@@ -625,11 +625,11 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="list-item">
             <div class="item-meta">
               <div class="item-title">
-                <span>${acct.label || 'Unknown'}</span>
+                <span>${escapeHtml(acct.label || 'Unknown')}</span>
                 <span class="item-badge-platform platform-${platform}">${platform.toUpperCase()}</span>
                 <span class="item-badge-platform">${acct.auth_mode || 'api'}</span>
-                <span style="font-size: 0.75rem; font-weight: 600; padding: 0.15rem 0.5rem; border-radius: 4px; background: rgba(255,255,255,0.05); color: ${healthColor}; border: 1px solid ${healthColor}40;" title="${health.health_reason}">
-                  ● ${health.health_status.toUpperCase()} (${health.health_reason})
+                <span style="font-size: 0.75rem; font-weight: 600; padding: 0.15rem 0.5rem; border-radius: 4px; background: rgba(255,255,255,0.05); color: ${healthColor}; border: 1px solid ${healthColor}40;" title="${escapeHtml(health.health_reason)}">
+                  ● ${escapeHtml(health.health_status.toUpperCase())} (${escapeHtml(health.health_reason)})
                 </span>
               </div>
               <div class="item-stats">
