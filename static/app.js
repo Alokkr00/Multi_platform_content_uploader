@@ -360,6 +360,11 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const hasErrorClass = post.status === 'failed' && post.error_msg ? 'has-error' : '';
         const errorDataAttr = post.status === 'failed' && post.error_msg ? `data-error="Error: ${escapeHtml(post.error_msg)}"` : '';
+        const errorMsgBanner = post.status === 'failed' && post.error_msg
+          ? `<div class="post-error-banner" style="margin-top: 0.5rem; padding: 0.4rem 0.6rem; background: rgba(239, 68, 68, 0.15); border-left: 3px solid #ef4444; border-radius: 4px; font-size: 0.75rem; color: #f87171; overflow-wrap: anywhere;">
+              <strong>Error:</strong> ${escapeHtml(post.error_msg)}
+             </div>`
+          : '';
         
         const platform = post.platform || 'x';
         const displayPlatform = platform.toUpperCase();
@@ -389,6 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
               </div>
             </div>
             <p class="post-caption">${escapeHtml(post.caption || 'No caption generated')}</p>
+            ${errorMsgBanner}
             <div class="post-card-stats-row" style="display: flex; gap: 0.75rem; margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-muted); opacity: 0.85;">
               <span title="Views">👁️ ${post.views || 0}</span>
               <span title="Likes">❤️ ${post.likes || 0}</span>

@@ -212,10 +212,9 @@ class YouTubePublisher(BasePublisher):
         logger.info(f"Video uploaded to YouTube successfully in chunks! Video ID: {video_id}")
         return video_id
 
-    async def post_tweet(self, text: str, media_id: str = None, **kwargs) -> dict:
+    async def publish_post(self, text: str, media_id: str = None, **kwargs) -> dict:
         """
         Finalize and publish YouTube Short metadata.
-        (Named post_tweet for BasePublisher compatibility).
         """
         if self.mock:
             video_id = media_id or f"mock_yt_id_{int(time.time())}"

@@ -527,7 +527,7 @@ class Scheduler:
                         caption = f"{caption}\n\nSource: {video_url}"
 
                 # Publish post
-                post_data = await publisher.post_tweet(caption, media_id, reply_link=reply_link)
+                post_data = await publisher.publish_post(caption, media_id, reply_link=reply_link)
                 post_id_ext = post_data.get("id", "")
                 post_url = post_data.get("url", "")
                 self._log("INFO", f"Published on {platform.upper()}: {post_url}")

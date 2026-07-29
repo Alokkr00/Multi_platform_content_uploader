@@ -158,9 +158,9 @@ class XPublisher(BasePublisher):
         logger.info(f"Chunked upload complete: media_id={media.media_id}")
         return media
 
-    async def post_tweet(self, text: str, media_id: str = None, reply_link: str = None, **kwargs) -> dict:
+    async def publish_post(self, text: str, media_id: str = None, reply_link: str = None, **kwargs) -> dict:
         """
-        Post a tweet, optionally with media and a threaded auto-reply link.
+        Publish a post to X, optionally with media and a threaded auto-reply link.
         """
         if self.mock:
             import random
@@ -285,7 +285,7 @@ class XPublisher(BasePublisher):
 
             media_id = await self.upload_media(transcoded_path)
 
-            tweet_data = await self.post_tweet(caption, media_id=media_id)
+            tweet_data = await self.publish_post(caption, media_id=media_id)
 
             logger.info(f"Pipeline complete: {tweet_data['url']}")
 
@@ -404,7 +404,7 @@ async def post_with_account(account_dict: dict, url: str, caption: str) -> dict:
         transcoded_path = await transcode_for_platform(downloaded_path, platform)
 
         media_id = await publisher.upload_media(transcoded_path)
-        post_data = await publisher.post_tweet(caption, media_id=media_id)
+        post_data = await publisher.publish_post(caption, media_id=media_id)
 
         # Post-publishing cleanup: delete downloaded_path (transcoded is cached)
         if downloaded_path and os.path.exists(downloaded_path) and downloaded_path != transcoded_path:

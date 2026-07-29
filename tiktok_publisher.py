@@ -70,10 +70,9 @@ class TikTokPublisher(BasePublisher):
                 "For now, please use Mock Mode or supply official TikTok API credentials."
             )
 
-    async def post_tweet(self, text: str, media_id: str = None, **kwargs) -> dict:
+    async def publish_post(self, text: str, media_id: str = None, **kwargs) -> dict:
         """
         Publish post to TikTok.
-        (Named post_tweet to conform to BasePublisher abstract signature).
         """
         if self.mock:
             import random

@@ -25,12 +25,13 @@ class BasePublisher(ABC):
         pass
 
     @abstractmethod
-    async def post_tweet(self, text: str, media_id: str = None, **kwargs) -> dict:
-        """
-        Publish post content to the platform. Returns dict with 'id' and 'url'.
-        (Kept as 'post_tweet' name for backward-compatibility with scheduler/server code).
-        """
+    async def publish_post(self, text: str, media_id: str = None, **kwargs) -> dict:
+        """Publish post content to the target platform. Returns dict with 'id' and 'url'."""
         pass
+
+    async def post_tweet(self, text: str, media_id: str = None, **kwargs) -> dict:
+        """Backwards-compatible alias for publish_post."""
+        return await self.publish_post(text, media_id=media_id, **kwargs)
 
 
     @abstractmethod
@@ -55,7 +56,7 @@ class MockPublisher(BasePublisher):
         logger.info(f"[MOCK-{self.platform.upper()}] Uploading media: {filename}")
         return f"mock_media_id_{self.platform}_{int(time.time())}"
 
-    async def post_tweet(self, text: str, media_id: str = None, **kwargs) -> dict:
+    async def publish_post(self, text: str, media_id: str = None, **kwargs) -> dict:
         import random
         post_id = str(random.randint(100000000000000000, 999999999999999999))
         post_url = f"https://{self.platform}.com/mock_user/status/{post_id}"

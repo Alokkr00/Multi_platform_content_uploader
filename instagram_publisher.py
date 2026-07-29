@@ -92,10 +92,9 @@ class InstagramPublisher(BasePublisher):
             # For cookie mode, we return the path directly as upload/post are combined in instagrapi
             return file_path
 
-    async def post_tweet(self, text: str, media_id: str = None, **kwargs) -> dict:
+    async def publish_post(self, text: str, media_id: str = None, **kwargs) -> dict:
         """
         Post media to Instagram feed or Reels.
-        (Named post_tweet to conform to BasePublisher abstract signature).
         """
         if self.mock:
             import random
