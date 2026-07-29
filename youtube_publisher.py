@@ -93,12 +93,27 @@ class YouTubePublisher(BasePublisher):
         expires_in = int(data.get("expires_in", 3600))
         self.token_expiry = now + expires_in
         logger.info(f"YouTube access token refreshed successfully for '{self.label}' (valid for {expires_in}s)")
+
+        # Persist refreshed token back to DB
+        try:
+            from db import update_account_credentials
+            new_creds = {
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+                "refresh_token": self.refresh_token,
+                "access_token": self.access_token,
+                "token_expiry": self.token_expiry
+            }
+            await asyncio.to_thread(update_account_credentials, self.label, "youtube", new_creds)
+        except Exception as pe:
+            logger.warning(f"Failed to persist refreshed token for '{self.label}': {pe}")
+
         return self.access_token
 
     async def upload_media(self, file_path: str) -> str:
         """
-        Upload video file to YouTube as a Short using resumable upload protocol.
-        Returns the created YouTube Video ID.
+        Upload video file to YouTube as a Short using true chunked resumable upload protocol.
+        Sends video in 5MB chunks with Content-Range headers. Returns created YouTube Video ID.
         """
         if self.mock:
             filename = os.path.basename(file_path)
@@ -145,38 +160,56 @@ class YouTubePublisher(BasePublisher):
                 return upload_location
 
         upload_location = await asyncio.to_thread(_init_upload)
-        logger.info(f"Resumable upload session initiated for '{os.path.basename(file_path)}'")
+        logger.info(f"Resumable upload session initiated for '{os.path.basename(file_path)}' ({file_size / (1024*1024):.1f} MB)")
 
-        # Stream binary data to upload location
-        def _stream_video():
+        # Stream binary data in 5MB chunks (multiple of 256KB required by YouTube)
+        CHUNK_SIZE = 5 * 1024 * 1024  # 5 MB
+
+        def _stream_video_chunks():
             with open(file_path, "rb") as f:
-                video_data = f.read()
+                start_byte = 0
+                while start_byte < file_size:
+                    chunk = f.read(CHUNK_SIZE)
+                    chunk_len = len(chunk)
+                    end_byte = start_byte + chunk_len - 1
 
-            stream_req = urllib.request.Request(
-                upload_location,
-                data=video_data,
-                headers={
-                    "Content-Length": str(file_size),
-                    "Content-Type": "video/mp4"
-                },
-                method="PUT"
-            )
+                    content_range = f"bytes {start_byte}-{end_byte}/{file_size}"
+                    logger.info(f"Uploading chunk ({start_byte}-{end_byte}/{file_size} bytes)...")
 
-            try:
-                with urllib.request.urlopen(stream_req, timeout=120) as resp:
-                    res_body = resp.read().decode("utf-8")
-                    return json.loads(res_body)
-            except urllib.error.HTTPError as e:
-                err_body = e.read().decode("utf-8")
-                logger.error(f"YouTube video bytes upload failed ({e.code}): {err_body}")
-                raise RuntimeError(f"YouTube video upload error: {err_body}") from e
+                    chunk_req = urllib.request.Request(
+                        upload_location,
+                        data=chunk,
+                        headers={
+                            "Content-Length": str(chunk_len),
+                            "Content-Type": "video/mp4",
+                            "Content-Range": content_range
+                        },
+                        method="PUT"
+                    )
 
-        res_json = await asyncio.to_thread(_stream_video)
+                    try:
+                        with urllib.request.urlopen(chunk_req, timeout=120) as resp:
+                            body = resp.read().decode("utf-8")
+                            if body:
+                                return json.loads(body)
+                    except urllib.error.HTTPError as e:
+                        if e.code == 308:
+                            # 308 Resume Incomplete (expected for intermediate chunks)
+                            start_byte = end_byte + 1
+                            continue
+                        else:
+                            err_body = e.read().decode("utf-8")
+                            logger.error(f"YouTube chunk upload failed ({e.code}): {err_body}")
+                            raise RuntimeError(f"YouTube chunk upload error: {err_body}") from e
+
+            raise RuntimeError("YouTube video upload ended without final response payload")
+
+        res_json = await asyncio.to_thread(_stream_video_chunks)
         video_id = res_json.get("id")
         if not video_id:
             raise RuntimeError(f"YouTube upload succeeded but no video ID returned: {res_json}")
 
-        logger.info(f"Video uploaded to YouTube successfully! Video ID: {video_id}")
+        logger.info(f"Video uploaded to YouTube successfully in chunks! Video ID: {video_id}")
         return video_id
 
     async def post_tweet(self, text: str, media_id: str = None, **kwargs) -> dict:
