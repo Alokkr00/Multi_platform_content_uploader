@@ -33,10 +33,11 @@ class YouTubePublisher(BasePublisher):
     def __init__(self, label: str = "youtube_account", client_id: str = None, client_secret: str = None,
                  refresh_token: str = None, mock_posting: bool = False, **kwargs):
         super().__init__(label, mock=mock_posting or kwargs.get("mock", False))
-        self.client_id = client_id
-        self.client_secret = client_secret
-        self.refresh_token = refresh_token
-        self.access_token = None
+        creds = kwargs.get("credentials", {})
+        self.client_id = client_id or creds.get("client_id")
+        self.client_secret = client_secret or creds.get("client_secret")
+        self.refresh_token = refresh_token or creds.get("refresh_token")
+        self.access_token = kwargs.get("access_token") or creds.get("access_token")
         self.token_expiry = 0
 
         if self.mock:
@@ -110,7 +111,7 @@ class YouTubePublisher(BasePublisher):
 
         return self.access_token
 
-    async def upload_media(self, file_path: str) -> str:
+    async def upload_media(self, file_path: str, title: str = None, description: str = None, **kwargs) -> str:
         """
         Upload video file to YouTube as a Short using true chunked resumable upload protocol.
         Sends video in 5MB chunks with Content-Range headers. Returns created YouTube Video ID.
@@ -126,11 +127,16 @@ class YouTubePublisher(BasePublisher):
         token = await self._ensure_access_token()
         file_size = os.path.getsize(file_path)
 
+        yt_title = title or f"Uploaded Short {int(time.time())}"
+        if "#shorts" not in yt_title.lower():
+            yt_title = f"{yt_title.strip()} #Shorts"
+        yt_desc = description or yt_title
+
         # Pre-upload snippet metadata
         snippet_data = {
             "snippet": {
-                "title": f"Uploaded Short {int(time.time())} #Shorts",
-                "description": "Uploaded via Content Uploader #Shorts",
+                "title": yt_title[:100],
+                "description": yt_desc,
                 "categoryId": "22"  # People & Blogs
             },
             "status": {
@@ -269,7 +275,6 @@ class YouTubePublisher(BasePublisher):
                 raise RuntimeError(f"YouTube metadata update failed: {err_body}") from e
 
         await asyncio.to_thread(_update_video)
-        await asyncio.to_thread(increment_post_count, self.label, "youtube")
 
         short_url = f"https://youtube.com/shorts/{video_id}"
         logger.info(f"YouTube Short metadata updated & published: {short_url}")

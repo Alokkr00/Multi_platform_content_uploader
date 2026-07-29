@@ -20,7 +20,7 @@ class BasePublisher(ABC):
         self.mock = mock or os.getenv("MOCK_POSTING", "false").lower() == "true"
 
     @abstractmethod
-    async def upload_media(self, file_path: str) -> str:
+    async def upload_media(self, file_path: str, **kwargs) -> str:
         """Upload media to the platform. Returns a unique media ID/reference."""
         pass
 
@@ -51,7 +51,7 @@ class MockPublisher(BasePublisher):
         self.platform = platform
         logger.info(f"MockPublisher ({self.platform}) initialized for account '{self.label}'")
 
-    async def upload_media(self, file_path: str) -> str:
+    async def upload_media(self, file_path: str, **kwargs) -> str:
         filename = os.path.basename(file_path)
         logger.info(f"[MOCK-{self.platform.upper()}] Uploading media: {filename}")
         return f"mock_media_id_{self.platform}_{int(time.time())}"

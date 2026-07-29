@@ -351,11 +351,12 @@ def get_publisher(account_dict: dict) -> BasePublisher:
         )
     elif platform == "youtube":
         from youtube_publisher import YouTubePublisher
+        creds = account_dict.get("credentials") if isinstance(account_dict.get("credentials"), dict) else {}
         return YouTubePublisher(
             label=label,
-            client_id=account_dict.get("client_id"),
-            client_secret=account_dict.get("client_secret"),
-            refresh_token=account_dict.get("refresh_token"),
+            client_id=account_dict.get("client_id") or creds.get("client_id"),
+            client_secret=account_dict.get("client_secret") or creds.get("client_secret"),
+            refresh_token=account_dict.get("refresh_token") or creds.get("refresh_token"),
             mock_posting=mock_posting
         )
     else:

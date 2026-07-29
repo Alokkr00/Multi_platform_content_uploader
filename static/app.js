@@ -551,7 +551,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch('/api/sources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, platform, name, destinations })
+        body: JSON.stringify({ url, platform, name, target_platforms: destinations.join(',') })
       });
       
       if (res.status === 409) {
@@ -621,7 +621,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       accountsList.innerHTML = allAccounts.map(acct => {
         const platform = acct.platform || 'x';
-        const limit = platform === 'x' ? 50 : (platform === 'instagram' ? 10 : 20);
+        const limit = platform === 'youtube' ? 8 : (platform === 'x' ? 50 : (platform === 'instagram' ? 10 : 20));
         const health = healthMap[`${platform}_${acct.label}`] || { health_status: 'healthy', health_reason: 'Operational' };
         
         let healthBadgeClass = 'badge-approval';
@@ -736,9 +736,8 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (!label) return;
     
-    if (!label.startsWith('@') || label.length < 2) {
-      showToast('Account label must start with "@" (e.g., @my_bot)', 'warning');
-      return;
+    if (!label.startsWith('@')) {
+      label = '@' + label;
     }
     
     if (platform === 'x') {
@@ -854,6 +853,9 @@ document.addEventListener('DOMContentLoaded', () => {
       acctTtOpenId.value = '';
       acctTtSessionId.value = '';
       acctTtUserAgent.value = '';
+      acctYtClientId.value = '';
+      acctYtClientSecret.value = '';
+      acctYtRefreshToken.value = '';
       
       fetchAccounts();
       fetchStatus();
@@ -917,6 +919,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (settingTplTt) {
         settingTplTt.value = settings.caption_template_tiktok || '';
       }
+      const settingTplYt = document.getElementById('setting-template-yt');
+      if (settingTplYt) {
+        settingTplYt.value = settings.caption_template_youtube || '';
+      }
     } catch (err) {
       showToast('Failed to load system settings', 'error');
     }
@@ -938,6 +944,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const caption_template_x = document.getElementById('setting-template-x')?.value.trim() ?? '';
     const caption_template_instagram = document.getElementById('setting-template-ig')?.value.trim() ?? '';
     const caption_template_tiktok = document.getElementById('setting-template-tt')?.value.trim() ?? '';
+    const caption_template_youtube = document.getElementById('setting-template-yt')?.value.trim() ?? '';
     
     const body = {
       interval_minutes,
@@ -951,7 +958,8 @@ document.addEventListener('DOMContentLoaded', () => {
       telegram_chat_id,
       caption_template_x,
       caption_template_instagram,
-      caption_template_tiktok
+      caption_template_tiktok,
+      caption_template_youtube
     };
     
     try {
