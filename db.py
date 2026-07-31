@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-logger = logging.getLogger("x_automation.db")
+logger = logging.getLogger("clipflow.db")
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bot.db")
 # ── Encryption Helpers ────────────────────────────────────────────────

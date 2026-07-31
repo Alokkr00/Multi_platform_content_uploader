@@ -13,7 +13,7 @@ from fastapi import APIRouter, HTTPException, Request, File, UploadFile
 import db
 from routes.sources import validate_safe_url
 
-logger = logging.getLogger("x_automation.routes.posts")
+logger = logging.getLogger("clipflow.routes.posts")
 
 router = APIRouter(tags=["Posts"])
 

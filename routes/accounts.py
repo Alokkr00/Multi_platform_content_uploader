@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 import db
 
-logger = logging.getLogger("x_automation.routes.accounts")
+logger = logging.getLogger("clipflow.routes.accounts")
 
 router = APIRouter(tags=["Accounts"])
 

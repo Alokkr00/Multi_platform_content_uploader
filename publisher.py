@@ -19,7 +19,7 @@ from db import increment_post_count, get_setting
 from downloader import download_video, transcode_for_x, cleanup, TEMP_DIR
 from base_publisher import BasePublisher, MockPublisher
 
-logger = logging.getLogger("x_automation.publisher")
+logger = logging.getLogger("clipflow.publisher")
 
 # ── Constants ─────────────────────────────────────────────────────────
 

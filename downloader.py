@@ -20,7 +20,7 @@ import yt_dlp
 
 from db import get_setting
 
-logger = logging.getLogger("x_automation.downloader")
+logger = logging.getLogger("clipflow.downloader")
 
 _active_processes = set()
 

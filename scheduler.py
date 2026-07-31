@@ -18,7 +18,7 @@ from downloader import fetch_metadata, fetch_latest_video, download_video, trans
 from caption_gen import generate_caption
 from publisher import get_publisher
 
-logger = logging.getLogger("x_automation.scheduler")
+logger = logging.getLogger("clipflow.scheduler")
 
 
 async def send_webhook_notification(post_id: int, status: str, details: dict):
@@ -422,7 +422,9 @@ class Scheduler:
         else:
             # Determine the video URL for online sources
             video_url = video.get("url")
-            if not video_url and video.get("source"):
+            if not video_url and str(video.get("video_id", "")).startswith("http"):
+                video_url = video["video_id"]
+            elif not video_url and video.get("source"):
                 source = video["source"]
                 if source.get("platform") == "youtube":
                     video_url = f"https://www.youtube.com/watch?v={video['video_id']}"

@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse
 import db
 from scheduler import scheduler
 
-logger = logging.getLogger("x_automation.routes.system")
+logger = logging.getLogger("clipflow.routes.system")
 
 router = APIRouter(tags=["System"])
 
@@ -136,7 +136,7 @@ async def export_system_backup():
     temp_dir = os.path.join(base_dir, "temp_media")
     os.makedirs(temp_dir, exist_ok=True)
     
-    zip_name = f"content_uploader_backup_{timestamp}.zip"
+    zip_name = f"clipflow_backup_{timestamp}.zip"
     zip_path = os.path.join(temp_dir, zip_name)
     db_path = os.path.join(base_dir, "bot.db")
 

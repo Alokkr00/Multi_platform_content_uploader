@@ -1,6 +1,10 @@
-# Content Uploader Bot
+<div align="center">
+  <img src="static/logo.png" alt="ClipFlow Logo" width="120" style="border-radius: 16px;" />
+  <h1>ClipFlow</h1>
+  <p><strong>Multi-Platform Social Media Video Distribution & Approval Engine</strong></p>
+</div>
 
-A personal-use **social media posting assistant** built with Python, FastAPI, and FFmpeg. Queues videos, photos, and text for posting to X (Twitter) and Instagram, with a human approval step before anything goes live.
+A personal-use **social media automation engine** built with Python, FastAPI, and FFmpeg. Ingests, transcodes, generates AI captions, and orchestrates posting to X (Twitter), YouTube Shorts, and Instagram Reels, with a human approval queue.
 
 > **This is a localhost tool for personal use.** It is not a production SaaS product. The security model (shared Bearer token, no session expiry) is appropriate for a single user on a trusted machine, not for multi-tenant or internet-exposed deployment.
 

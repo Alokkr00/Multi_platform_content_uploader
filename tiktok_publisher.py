@@ -11,7 +11,7 @@ import logging
 import asyncio
 from base_publisher import BasePublisher
 
-logger = logging.getLogger("x_automation.publisher")
+logger = logging.getLogger("clipflow.publisher")
 
 
 class TikTokPublisher(BasePublisher):

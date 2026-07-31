@@ -36,7 +36,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[logging.StreamHandler(sys.stdout)]
 )
-logger = logging.getLogger("x_automation.server")
+logger = logging.getLogger("clipflow.server")
 
 
 # ── Dashboard Auth Secret Setup ───────────────────────────────────────
@@ -84,7 +84,7 @@ class DBLogHandler(logging.Handler):
         except Exception:
             pass
 
-logger_obj = logging.getLogger("x_automation")
+logger_obj = logging.getLogger("clipflow")
 if not any(isinstance(h, DBLogHandler) for h in logger_obj.handlers):
     db_handler = DBLogHandler()
     db_handler.setLevel(logging.INFO)
@@ -116,8 +116,8 @@ async def lifespan(app_instance: FastAPI):
 # ── FastAPI App Setup & Middleware ────────────────────────────────────
 
 app = FastAPI(
-    title="Content Uploader Engine",
-    description="Multi-platform content posting bot with approval queue & transcoding",
+    title="ClipFlow Engine",
+    description="ClipFlow — Multi-Platform Social Media Distribution Engine with approval queue & transcoding",
     version="2.0.0",
     lifespan=lifespan
 )
@@ -188,7 +188,7 @@ if __name__ == "__main__":
     host = os.getenv("HOST", "127.0.0.1")
     port = int(os.getenv("PORT", "8000"))
 
-    print(f"\n  Content Uploader Bot starting...")
+    print(f"\n  ClipFlow starting...")
     print(f"  Dashboard: http://localhost:{port}")
     print(f"  API Docs:  http://localhost:{port}/docs\n")
 

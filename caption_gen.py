@@ -13,7 +13,7 @@ import warnings
 
 from db import get_setting
 
-logger = logging.getLogger("x_automation.caption_gen")
+logger = logging.getLogger("clipflow.caption_gen")
 
 # ── Constants ─────────────────────────────────────────────────────────
 

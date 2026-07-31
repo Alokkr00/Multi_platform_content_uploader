@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 SQLITE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bot.db")
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://bot_user:bot_password_9988@localhost:5432/x_automation_db")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://bot_user:bot_password_9988@localhost:5432/clipflow_db")
 
 def get_postgres_connection():
     return psycopg2.connect(DATABASE_URL)

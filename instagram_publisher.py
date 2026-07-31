@@ -12,7 +12,7 @@ import json
 import asyncio
 from base_publisher import BasePublisher
 
-logger = logging.getLogger("x_automation.publisher")
+logger = logging.getLogger("clipflow.publisher")
 
 # Safe import for instagrapi
 try:

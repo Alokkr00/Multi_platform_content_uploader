@@ -9,7 +9,7 @@ import time
 import logging
 from abc import ABC, abstractmethod
 
-logger = logging.getLogger("x_automation.publisher")
+logger = logging.getLogger("clipflow.publisher")
 
 
 class BasePublisher(ABC):

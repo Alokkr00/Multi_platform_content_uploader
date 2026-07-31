@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 import db
 
-logger = logging.getLogger("x_automation.routes.sources")
+logger = logging.getLogger("clipflow.routes.sources")
 
 router = APIRouter(tags=["Sources"])
 

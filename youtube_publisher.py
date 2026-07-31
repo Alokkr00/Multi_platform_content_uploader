@@ -17,7 +17,7 @@ import urllib.error
 from base_publisher import BasePublisher
 from db import increment_post_count
 
-logger = logging.getLogger("x_automation.youtube_publisher")
+logger = logging.getLogger("clipflow.youtube_publisher")
 
 OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token"
 YOUTUBE_UPLOAD_URL = "https://www.googleapis.com/upload/youtube/v3/videos"
