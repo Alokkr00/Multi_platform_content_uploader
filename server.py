@@ -103,13 +103,13 @@ async def lifespan(app_instance: FastAPI):
     db.reset_stuck_post_states()
     logger.info("Stuck post states reset successfully")
 
-    scheduler.start()
+    await scheduler.start()
     logger.info("Scheduler started")
 
     yield
 
     logger.info("Shutting down scheduler...")
-    scheduler.stop()
+    await scheduler.stop()
     logger.info("Application shutdown complete")
 
 

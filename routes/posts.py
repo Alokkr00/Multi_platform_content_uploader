@@ -98,15 +98,18 @@ async def quick_post(request: Request):
                 await asyncio.to_thread(db.update_post_status, post_id, "transcoding")
                 transcoded_path = await transcode_for_platform(raw_path, platform)
             except Exception as de:
-                logger.warning(f"Failed to download/transcode video media: {de}")
-                transcoded_path = None
+                logger.error(f"Failed to download/transcode video media: {de}")
+                raise RuntimeError(f"Video download/transcode failed: {de}") from de
 
-            if caption_override:
-                generated = caption_override
-            elif title:
+            if caption_override and caption_override.strip():
+                generated = caption_override.strip()
+            elif title and title.strip():
                 generated = await asyncio.to_thread(generate_caption, title, desc, platform=platform)
             else:
                 generated = ""
+
+            if not generated or not generated.strip():
+                generated = title.strip() if (title and title.strip()) else f"Check this out! {url}"
 
             reply_link = None
             if platform == "x":

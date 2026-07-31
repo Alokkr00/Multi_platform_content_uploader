@@ -144,17 +144,17 @@ def generate_caption(title: str, description: str = "", template: str = None, pl
     """
     if not title:
         logger.warning("generate_caption called with empty title")
-        return ""
+        return "Check out this video!"
 
     if _is_url(title):
         if description and not _is_url(description):
             title = description
         else:
-            title = ""
+            title = "Check out this video!"
 
     if not title:
-        logger.info("Title is empty or a URL and no fallback description is available. Returning empty caption.")
-        return ""
+        logger.info("Title is empty or a URL and no fallback description is available. Returning fallback caption.")
+        return "Check out this video!"
 
     logger.info(f"Generating caption for {platform.upper()}: '{title[:60]}...'")
 

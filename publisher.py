@@ -175,13 +175,23 @@ class XPublisher(BasePublisher):
                 "url": tweet_url,
             }
 
-        logger.info(f"Posting tweet ({len(text)} chars, media={'yes' if media_id else 'no'})")
+        effective_text = (text or "").strip()
+        if not effective_text:
+            if reply_link:
+                effective_text = reply_link
+                reply_link = None
+            elif not media_id:
+                raise ValueError("Cannot post tweet: missing required tweet text or media.")
+
+        logger.info(f"Posting tweet ({len(effective_text)} chars, media={'yes' if media_id else 'no'})")
 
         if self.auth_mode == "api":
-            kwargs = {"text": text}
+            api_kwargs = {}
+            if effective_text:
+                api_kwargs["text"] = effective_text
             if media_id:
-                kwargs["media_ids"] = [int(media_id)]
-            response = await asyncio.to_thread(self.client.create_tweet, **kwargs)
+                api_kwargs["media_ids"] = [int(media_id)]
+            response = await asyncio.to_thread(self.client.create_tweet, **api_kwargs)
             tweet_id = str(response.data["id"])
             tweet_url = f"https://x.com/i/status/{tweet_id}"
             
@@ -199,7 +209,8 @@ class XPublisher(BasePublisher):
                     logger.error(f"Failed to post threaded reply: {ex}")
         elif self.auth_mode == "cookie":
             media_ids = [media_id] if media_id else None
-            tweet = await self.twikit_client.create_tweet(text=text, media_ids=media_ids)
+            twikit_text = effective_text if effective_text else None
+            tweet = await self.twikit_client.create_tweet(text=twikit_text, media_ids=media_ids)
             tweet_id = str(tweet.id)
             tweet_url = f"https://x.com/i/status/{tweet_id}"
             
