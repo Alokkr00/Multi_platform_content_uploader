@@ -880,7 +880,7 @@ document.addEventListener('DOMContentLoaded', () => {
       
       settingCaptionAi.checked = settings.caption_ai === 'true' || settings.caption_ai === true;
       settingGeminiKey.value = settings.gemini_api_key || '';
-      settingTemplate.value = settings.caption_template || '';
+      if (settingTemplate) settingTemplate.value = settings.caption_template || '';
       
       // Load Sprint 6 variables
       const settingJitter = document.getElementById('setting-scheduler-jitter');

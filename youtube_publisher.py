@@ -15,7 +15,6 @@ import urllib.parse
 import urllib.error
 
 from base_publisher import BasePublisher
-from db import increment_post_count
 
 logger = logging.getLogger("clipflow.youtube_publisher")
 

@@ -84,8 +84,11 @@ async def quick_post(request: Request):
                 meta = await asyncio.to_thread(fetch_metadata, url)
                 if meta and meta.get("title"):
                     conn = db.get_connection()
-                    conn.execute("UPDATE posts_history SET title = ? WHERE id = ?", (meta["title"], post_id))
-                    conn.commit()
+                    try:
+                        conn.execute("UPDATE posts_history SET title = ? WHERE id = ?", (meta["title"], post_id))
+                        conn.commit()
+                    finally:
+                        conn.close()
             except Exception as me:
                 logger.warning(f"Failed to fetch metadata for video ID update: {me}")
 

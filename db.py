@@ -117,7 +117,7 @@ def init_db():
                 caption TEXT DEFAULT '',
                 tweet_id TEXT,
                 account_label TEXT,
-                status TEXT CHECK(status IN ('draft', 'pending', 'pending_approval', 'approved', 'scheduled', 'downloading', 'transcoding', 'uploading', 'success', 'failed')) DEFAULT 'pending',
+                status TEXT CHECK(status IN ('draft', 'pending', 'processing', 'pending_approval', 'approved', 'scheduled', 'downloading', 'transcoding', 'uploading', 'success', 'failed')) DEFAULT 'pending',
                 error_msg TEXT,
                 posted_at TEXT,
                 fail_count INTEGER DEFAULT 0,
